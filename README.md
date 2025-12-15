@@ -94,7 +94,7 @@ laundry-backend/
 ├─ docs/                # design & documentation
 ├─ spec/                # API specifications
 └─ README.md
-
+````
 
 ## Tech Stack
 
@@ -105,6 +105,6 @@ laundry-backend/
 ## Development Status
 
 Current phase:
+
 - Database schema and migrations completed
 - API contracts and implementation are in progress
-````
