@@ -58,25 +58,6 @@ The database schema is designed around order-centric workflow and includes:
 
 ## Project Structure
 
-````text
-laundry-backend/
-├─ cmd/
-│  └─ server/
-│     └─ main.go        # application entry point
-├─ internal/
-│  ├─ config/           # configuration loader
-│  ├─ db/               # database connection & helpers
-│  ├─ handlers/         # HTTP handlers (request/response)
-│  ├─ services/         # business logic
-│  ├─ repositories/     # database access layer
-│  ├─ models/           # data models / entities
-│  └─ middlewares/      # HTTP middlewares
-├─ migrations/          # SQL database migrations
-├─ docs/                # design & documentation
-├─ spec/                # API specifications
-└─ README.md
-## Project Structure
-
 ```text
 laundry-backend/
 ├─ cmd/
@@ -94,7 +75,7 @@ laundry-backend/
 ├─ docs/                # design & documentation
 ├─ spec/                # API specifications
 └─ README.md
-````
+```
 
 ## Tech Stack
 
