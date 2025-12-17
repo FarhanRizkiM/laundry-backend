@@ -1,0 +1,43 @@
+# FILE: components/responses.yaml
+
+UnauthorizedError:
+  description: Unauthorized
+  content:
+    application/json:
+      schema:
+        $ref: "./schemas.yaml#/ErrorResponse"
+      example:
+        error:
+          code: unauthorized
+          message: Invalid or missing access token
+
+ForbiddenError:
+  description: Forbidden. The request was valid, but the server is refusing action.
+  content:
+    application/json:
+      schema:
+        $ref: "./schemas.yaml#/ErrorResponse"
+      examples:
+        AccountSuspended:
+          summary: Account Suspended
+          value:
+            error:
+              code: account_inactive
+              message: Your account is disabled or suspended
+        InsufficientPermissions:
+          summary: Insufficient Permissions
+          value:
+            error:
+              code: insufficient_permissions
+              message: You do not have permission to access this resource
+
+InternalServerError:
+  description: Internal Server Error
+  content:
+    application/json:
+      schema:
+        $ref: "./schemas.yaml#/ErrorResponse"
+      example:
+        error:
+          code: internal_server_error
+          message: An unexpected error occurred

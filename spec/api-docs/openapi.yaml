@@ -1,0 +1,52 @@
+openapi: 3.0.3
+
+info:
+  title: Laundry Management System API
+  description: |
+    Backend API for Laundry Management System.
+    This API is used by internal users such as owner, cashier, staff, and courier.
+  version: 1.0.0
+
+servers:
+  - url: /api/v1
+    description: API version 1.0
+
+paths:
+  # Kita panggil file logic (tetap modular)
+  /auth/login:
+    $ref: "./paths/auth.yaml#/login"
+
+  /auth/logout:
+    $ref: "./paths/auth.yaml#/logout"
+
+  /auth/me:
+    $ref: "./paths/auth.yaml#/me"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  # =======================================================
+  # REGISTRY SCHEMAS (Agar nama di UI tetap cantik)
+  # =======================================================
+  schemas:
+    User:
+      $ref: "./components/schemas.yaml#/User"
+
+    LoginRequest:
+      $ref: "./components/schemas.yaml#/LoginRequest"
+
+    LoginSuccess:
+      $ref: "./components/schemas.yaml#/LoginSuccess"
+
+    LoginData:
+      $ref: "./components/schemas.yaml#/LoginData"
+
+    SuccessResponse:
+      $ref: "./components/schemas.yaml#/SuccessResponse"
+
+    ErrorResponse:
+      $ref: "./components/schemas.yaml#/ErrorResponse"

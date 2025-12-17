@@ -1,0 +1,96 @@
+# FILE: paths/auth.yaml
+
+login:
+  post:
+    tags:
+      - Auth
+    summary: User login
+    operationId: loginUser
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/LoginRequest"
+    responses:
+      "200":
+        description: Login successful
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/LoginSuccess"
+      "400":
+        description: Validation error (Input Missing)
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: validation_error
+                message: Input validation failed
+                details:
+                  - field: username and password
+                    message: required
+      "401":
+        description: Invalid credentials (Username/Password salah)
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: invalid_credentials
+                message: Username or password is incorrect
+      "403":
+        $ref: "../components/responses.yaml#/ForbiddenError"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+logout:
+  post:
+    tags:
+      - Auth
+    summary: User logout
+    operationId: logoutUser
+    security:
+      - BearerAuth: []
+    responses:
+      "200":
+        description: Logout successful
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "../components/schemas.yaml#/SuccessResponse"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+me:
+  get:
+    tags:
+      - Auth
+    summary: Get current user
+    operationId: getCurrentUser
+    security:
+      - BearerAuth: []
+    responses:
+      "200":
+        description: Success
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "../components/schemas.yaml#/User"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "403":
+        $ref: "../components/responses.yaml#/ForbiddenError"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"

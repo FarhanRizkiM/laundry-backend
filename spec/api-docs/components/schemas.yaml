@@ -1,0 +1,92 @@
+# FILE: components/schemas.yaml
+
+User:
+  type: object
+  properties:
+    id:
+      type: integer
+      format: int64
+      example: 3
+    name:
+      type: string
+      example: Farhan Rizki Maulana
+    username:
+      type: string
+      example: farhanrizkimln
+    role:
+      type: string
+      enum: [owner, kasir, staff, courier]
+      example: owner
+    created_at:
+      type: string
+      format: date-time
+      example: "2024-01-30T10:00:00Z"
+
+LoginRequest:
+  type: object
+  required:
+    - username
+    - password
+  properties:
+    username:
+      type: string
+      example: farhanrizkimln
+    password:
+      type: string
+      example: password123
+
+LoginSuccess:
+  type: object
+  properties:
+    data:
+      $ref: "./schemas.yaml#/LoginData" # Self-reference
+    message:
+      type: string
+      example: "Login successful"
+
+LoginData:
+  type: object
+  properties:
+    access_token:
+      type: string
+      example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+    token_type:
+      type: string
+      example: Bearer
+    expires_in:
+      type: integer
+      example: 3600
+    user:
+      $ref: "./schemas.yaml#/User" # Self-reference
+
+SuccessResponse:
+  type: object
+  properties:
+    message:
+      type: string
+      example: "Operation successful"
+
+ErrorResponse:
+  type: object
+  properties:
+    error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          example: validation_error
+        message:
+          type: string
+          example: Validation failed
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
