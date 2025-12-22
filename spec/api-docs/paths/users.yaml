@@ -1,0 +1,243 @@
+# FILE: paths/users.yaml
+
+# ==========================================
+# 1. GROUP UNTUK URL: /users
+# (Berisi GET List & POST Create)
+# ==========================================
+usersRoot:
+  post:
+    tags:
+      - Users
+    summary: Create new user (Recruit)
+    operationId: createUser
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [name, username, password, role]
+            properties:
+              name: { type: string, maxLength: 150 }
+              username: { type: string, maxLength: 100 }
+              password: { type: string, minLength: 6 }
+              role: { type: string, enum: [owner, kasir, staff, courier] }
+              phone: { type: string, maxLength: 30 }
+    responses:
+      "201":
+        description: User created
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "../components/schemas.yaml#/User"
+                message: { type: string, example: "User created successfully" }
+      # [MANUAL EXAMPLE] 400: Validasi Gagal
+      "400":
+        description: Validation Error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "validation_error"
+                message: "Invalid input (e.g. Password too short, Missing Name)"
+
+      # [MANUAL EXAMPLE] 409: Username Kembar
+      "409":
+        description: Conflict (Username exists)
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "conflict_error"
+                message: "Username 'budi.kasir' already exists"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+  get:
+    tags:
+      - Users
+    summary: Get all users (List Data Users)
+    description: |
+      Retrieve list of users. 
+      Only **Owner** can see all users.
+      Supports pagination and filtering by active status.
+    operationId: listUsers
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: page
+        in: query
+        schema: { type: integer, default: 1 }
+      - name: limit
+        in: query
+        schema: { type: integer, default: 10 }
+      - name: is_active
+        in: query
+        description: Filter by status (true = active, false = deleted). Default shows all.
+        schema: { type: boolean }
+    responses:
+      "200":
+        description: Success
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: "../components/schemas.yaml#/User"
+                meta:
+                  $ref: "../components/schemas.yaml#/PaginationMeta"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "403":
+        $ref: "../components/responses.yaml#/ForbiddenError"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+# ==========================================
+# 2. GROUP UNTUK URL: /users/{id}
+# (Berisi GET Detail, PUT Update, DELETE)
+# ==========================================
+usersId:
+  get:
+    tags:
+      - Users
+    summary: Get user detail
+    operationId: getUserDetail
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    responses:
+      "200":
+        description: Success
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "../components/schemas.yaml#/User"
+      # [MANUAL EXAMPLE] 404: User Tidak Ketemu
+      "404":
+        description: User Not Found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "resource_not_found"
+                message: "User with ID 5 not found"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+  put:
+    tags:
+      - Users
+    summary: Update user data
+    operationId: updateUser
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name: { type: string, maxLength: 150 }
+              password: { type: string, minLength: 6 }
+              role: { type: string, enum: [owner, kasir, staff, courier] }
+              phone: { type: string, maxLength: 30 }
+              is_active: { type: boolean }
+    responses:
+      "200":
+        description: User updated
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "../components/schemas.yaml#/User"
+                message: { type: string, example: "Updated" }
+      # [MANUAL EXAMPLE] 400: Validasi Update Gagal
+      "400":
+        description: Validation Error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "validation_error"
+                message: "Password too short or Invalid Role"
+
+      # [MANUAL EXAMPLE] 404: User Tidak Ketemu
+      "404":
+        description: User Not Found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "resource_not_found"
+                message: "User with ID 5 not found"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+  delete:
+    tags:
+      - Users
+    summary: Soft delete user
+    operationId: deleteUser
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    responses:
+      "200":
+        description: User deactivated
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message: { type: string, example: "User deactivated" }
+      # [MANUAL EXAMPLE] 404: User Tidak Ketemu
+      "404":
+        description: User Not Found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "resource_not_found"
+                message: "User with ID 5 not found"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"

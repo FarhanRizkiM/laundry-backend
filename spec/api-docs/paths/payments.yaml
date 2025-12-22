@@ -1,0 +1,126 @@
+paymentsRoot:
+  post:
+    tags:
+      - Payments
+    summary: Add Payment
+    description: |
+      Mencatat pembayaran baru sesuai struktur tabel database.
+
+      **LOGIKA BACKEND (UPDATED):**
+      1. **Input Data:**
+         - `order_id`: Ambil dari URL.
+         - `collected_by`: Ambil dari ID User yang login (Token JWT).
+         - `collected_at`: Jika kosong, isi dengan Waktu Sekarang (NOW).
+         - `status`: Jika method 'cash', otomatis 'confirmed'. Jika transfer, bisa 'pending'.
+
+      2. **Trigger Status Order:**
+         - Hitung total payment KHUSUS yang statusnya **'confirmed'**.
+         - Abaikan yang statusnya 'pending' atau 'deleted_at' terisi.
+         - Jika `Total Confirmed >= Tagihan Order` -> Update Order jadi **'paid'**.
+    operationId: createPayment
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/CreatePaymentRequest"
+    responses:
+      "201":
+        description: Payment Created
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/PaymentResponse"
+      "400":
+        description: Bad Request
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+paymentsId:
+  put:
+    tags:
+      - Payments
+    summary: Update Payment
+    description: |
+      Mengedit data pembayaran (misal ubah status dari pending -> confirmed).
+
+      **LOGIKA:**
+      - Jika status berubah jadi 'confirmed', hitung ulang total bayar order.
+    operationId: updatePayment
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+      - name: payment_id
+        in: path
+        required: true
+        schema: { type: integer }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/CreatePaymentRequest"
+    responses:
+      "200":
+        description: Updated
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/PaymentResponse"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+  delete:
+    tags:
+      - Payments
+    summary: Soft Delete Payment
+    description: |
+      Membatalkan pembayaran. 
+      **PENTING:** Karena di table ada kolom `deleted_at`, maka gunakan **SOFT DELETE**.
+
+      **LOGIKA BACKEND:**
+      - Jangan `DELETE FROM payments...` (HARD DELETE).
+      - Tapi `UPDATE payments SET deleted_at = NOW() WHERE id = ...`
+      - Setelah itu, hitung ulang status order (kembalikan ke 'unpaid' jika perlu).
+    operationId: deletePayment
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+      - name: payment_id
+        in: path
+        required: true
+        schema: { type: integer }
+    responses:
+      "200":
+        description: Payment Voided (Soft Deleted)
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/SuccessResponse"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"

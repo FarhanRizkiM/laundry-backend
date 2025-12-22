@@ -33,7 +33,7 @@ login:
                   - field: username and password
                     message: required
       "401":
-        description: Invalid credentials (Username/Password salah)
+        description: Invalid credentials (Username/Password Wrong)
         content:
           application/json:
             schema:

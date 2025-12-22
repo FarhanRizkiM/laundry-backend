@@ -1,0 +1,230 @@
+# FILE: paths/categories.yaml
+
+# ==========================================
+# 1. GROUP UNTUK URL: /categories
+# (List & Create)
+# ==========================================
+categoriesRoot:
+  post:
+    tags:
+      - Categories
+    summary: Create category
+    operationId: createCategory
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [name]
+            properties:
+              name: { type: string, maxLength: 150 }
+              description: { type: string, maxLength: 255 }
+    responses:
+      "201":
+        description: Category created
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "../components/schemas.yaml#/ServiceCategory"
+                message:
+                  { type: string, example: "Category created successfully" }
+
+      # [MANUAL EXAMPLE] 400: Validasi
+      "400":
+        description: Validation Error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "validation_error"
+                message: "Name is required"
+
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "403":
+        $ref: "../components/responses.yaml#/ForbiddenError"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+  get:
+    tags:
+      - Categories
+    summary: List all categories
+    description: Get list of service categories with filtering.
+    operationId: listCategories
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: is_active
+        in: query
+        description: Filter by status (true/false).
+        schema: { type: boolean }
+      - name: name
+        in: query
+        description: Search by name (LIKE match).
+        schema: { type: string }
+    responses:
+      "200":
+        description: Success
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: "../components/schemas.yaml#/ServiceCategory"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+# ==========================================
+# 2. GROUP UNTUK URL: /categories/{id}
+# (Detail, Update, Delete)
+# ==========================================
+categoriesId:
+  get:
+    tags:
+      - Categories
+    summary: Get category detail
+    operationId: getCategoryDetail
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    responses:
+      "200":
+        description: Success
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "../components/schemas.yaml#/ServiceCategory"
+
+      # [MANUAL EXAMPLE] 404: Not Found
+      "404":
+        description: Category Not Found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "resource_not_found"
+                message: "Category with ID 1 not found"
+
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+  put:
+    tags:
+      - Categories
+    summary: Update category
+    operationId: updateCategory
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name: { type: string, maxLength: 150 }
+              description: { type: string, maxLength: 255 }
+              is_active: { type: boolean }
+    responses:
+      "200":
+        description: Category updated
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "../components/schemas.yaml#/ServiceCategory"
+                message: { type: string, example: "Updated successfully" }
+
+      # [MANUAL EXAMPLE] 404
+      "404":
+        description: Category Not Found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "resource_not_found"
+                message: "Category with ID 1 not found"
+
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+  delete:
+    tags:
+      - Categories
+    summary: Soft delete category
+    description: Sets is_active = false.
+    operationId: deleteCategory
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    responses:
+      "200":
+        description: Category deactivated
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message: { type: string, example: "Category deactivated" }
+
+      # [MANUAL EXAMPLE] 409 Conflict
+      "409":
+        description: Conflict (Category in use)
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "conflict_error"
+                message: "Cannot delete category because it is used by active services"
+
+      "404":
+        description: Category Not Found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "resource_not_found"
+                message: "Category with ID 1 not found"
+
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"

@@ -1,5 +1,8 @@
 # FILE: components/responses.yaml
 
+# Reusable Response Components
+
+## Error 401
 UnauthorizedError:
   description: Unauthorized
   content:
@@ -11,26 +14,19 @@ UnauthorizedError:
           code: unauthorized
           message: Invalid or missing access token
 
+## Error 403
 ForbiddenError:
   description: Forbidden. The request was valid, but the server is refusing action.
   content:
     application/json:
       schema:
         $ref: "./schemas.yaml#/ErrorResponse"
-      examples:
-        AccountSuspended:
-          summary: Account Suspended
-          value:
-            error:
-              code: account_inactive
-              message: Your account is disabled or suspended
-        InsufficientPermissions:
-          summary: Insufficient Permissions
-          value:
-            error:
-              code: insufficient_permissions
-              message: You do not have permission to access this resource
+      example:
+        error:
+          code: insufficient_permissions
+          message: You do not have permission to access this resource
 
+## Error 500
 InternalServerError:
   description: Internal Server Error
   content:

@@ -69,13 +69,15 @@ Authorization: Bearer <token>
 
 ### Payments
 
-- POST /orders/{id}/payments
+- POST /payments
+- PUT /payments/{id}
+- DELETE /payments/{id}
 
-### Courier
+### Delivery
 
-- POST /orders/{id}/assign-courier
-- PATCH /orders/{id}/delivery-status
+- POST /deliveries
+- PATCH /deliveries/{id}
 
 ### Customer
 
-- GET /public/orders/{kode_nota}
+- GET /orders/track/{kode_nota}

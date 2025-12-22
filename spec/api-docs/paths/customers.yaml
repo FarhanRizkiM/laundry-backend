@@ -1,0 +1,101 @@
+customers:
+  get:
+    tags:
+      - Public Tracking
+    summary: Track Order by Invoice Code (Public)
+    description: Customer melacak status laundry tanpa login.
+
+    # -----------------------------------------------------
+    # SECURITY KOSONG = PUBLIC ACCESS
+    # -----------------------------------------------------
+    security: []
+
+    parameters:
+      - name: kode_nota
+        in: path
+        required: true
+        schema:
+          type: string
+          example: "INV-20251219-001"
+
+    responses:
+      "200":
+        description: Tracking Found
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message: { type: string, example: "Tracking found" }
+                data:
+                  type: object
+                  properties:
+                    kode_nota: { type: string, example: "INV-20251219-001" }
+                    customer_name: { type: string, example: "Budi S*****" }
+                    # Kita set contoh statusnya jadi OTW
+                    status_internal:
+                      { type: string, example: "being-delivered" }
+                    status_readable:
+                      {
+                        type: string,
+                        example: "Kurir Sedang Menuju Lokasi Anda",
+                      }
+
+                    # 1. Tetap Panggil Schema Asli (Biar Code Clean)
+                    delivery:
+                      $ref: "../components/schemas.yaml#/DeliveryInfo"
+
+                    items:
+                      type: array
+                      items:
+                        {
+                          type: object,
+                          properties:
+                            { name: { type: string }, qty: { type: integer } },
+                        }
+
+              # 2. INI KUNCINYA: Override Example agar Visualnya Benar (Null)
+            example:
+              message: "Tracking found"
+              data:
+                kode_nota: "INV-20251219-001"
+                customer_name: "Budi S*****"
+                status_internal: "being-delivered" # Status OTW
+                status_readable: "Kurir Sedang Menuju Lokasi Anda"
+                delivery:
+                  id: 55
+                  courier_id: 5
+                  courier_name: "Ujang Kurir"
+                  picked_at: "2025-12-22T13:08:31Z"
+                  delivered_at: null # <--- KITA PAKSA TAMPIL NULL DISINI
+                  cod_collected_amount: 0
+                items:
+                  - name: "Cuci Kiloan Reguler"
+                    qty: 5
+
+      # Error Response (Not Found / Rate Limit)
+      "404":
+        description: Nota Tidak Ditemukan
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "not_found"
+                message: "Invoice tidak ditemukan"
+
+      "429":
+        description: Too Many Requests
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "too_many_requests"
+                message: "Terlalu sering request. Tunggu sebentar."
+
+      # --- ERROR 3: SERVER ERROR ---
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"

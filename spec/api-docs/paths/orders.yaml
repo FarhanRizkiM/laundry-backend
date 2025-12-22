@@ -1,0 +1,319 @@
+ordersRoot:
+  post:
+    tags:
+      - Orders
+    summary: Create New Order (Transaksi Baru)
+    description: |
+      Endpoint utama untuk Kasir membuat pesanan.
+
+      **LOGIKA BACKEND (GOLANG):**
+      1. **Validasi:** Cek stok/input.
+      2. **Split Data:**
+        - Data Header (`customer_name`, `estimated_ready_at`, dll) -> Insert ke tabel `orders`.
+        - Data Items (`service_id`, `qty`, `weight`) -> Loop & Insert ke tabel `order_items`.
+      3. **Snapshot Harga:** Mengambil harga layanan dari tabel `services` saat itu juga, lalu dikalikan qty/weight untuk dapat `subtotal`.
+      4. **Kalkulasi:** Menjumlahkan semua subtotal item untuk update `total_price` di tabel `orders`.
+
+      **CATATAN:**
+      - Status Order otomatis: `pending`.
+      - Payment Status otomatis: `unpaid`.
+    operationId: createOrder
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            # Mengambil input dari schema yang sudah disesuaikan dengan DB Real
+            $ref: "../components/schemas.yaml#/CreateOrderRequest"
+    responses:
+      "201":
+        description: Order Created Successfully
+        content:
+          application/json:
+            schema:
+              # Mengembalikan object Order lengkap dengan Message Wrapper
+              $ref: "../components/schemas.yaml#/OrderResponse"
+
+      "400":
+        description: Validation Error (Bad Request)
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "validation_error"
+                message: "Items array cannot be empty or Service ID invalid"
+
+      "401":
+        # Mengambil dari components/responses.yaml
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+
+      "403":
+        # Mengambil dari components/responses.yaml
+        $ref: "../components/responses.yaml#/ForbiddenError"
+
+      "500":
+        # Mengambil dari components/responses.yaml
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+  # ==========================================
+  # 2. LIST ORDERS (GET) - BARU
+  # ==========================================
+  get:
+    tags:
+      - Orders
+    summary: Get List of Orders (Daftar Pesanan)
+    description: |
+      Mengambil daftar pesanan dengan fitur Pagination dan Filter Status.
+      Digunakan untuk:
+      - Tab "Antrian" -> kirim param `status=pending`
+      - Tab "Proses" -> kirim param `status=in-progress`
+      - Tab "Riwayat" -> kirim param `status=finished-delivery` atau kosongkan status.
+    operationId: getOrders
+    security:
+      - BearerAuth: []
+    parameters:
+      # --- Filter Status (PENTING BUAT TAB) ---
+      - name: status
+        in: query
+        description: "Filter berdasarkan status_internal (pending, in-progress, ready-pickup, dll)"
+        required: false
+        schema:
+          type: string
+          enum:
+            [
+              "pending",
+              "in-progress",
+              "ready-pickup",
+              "ready-delivery",
+              "finished-delivery",
+              "picked-up",
+              "cancelled",
+            ]
+
+      # --- Pagination ---
+      - name: page
+        in: query
+        description: "Halaman ke berapa (Default: 1)"
+        schema:
+          type: integer
+          default: 1
+      - name: limit
+        in: query
+        description: "Jumlah data per halaman (Default: 10)"
+        schema:
+          type: integer
+          default: 10
+
+      # --- Search (Optional) ---
+      - name: search
+        in: query
+        description: "Cari berdasarkan nama customer atau kode nota"
+        schema:
+          type: string
+
+    responses:
+      "200":
+        description: List of orders retrieved successfully
+        content:
+          application/json:
+            schema:
+              # Menggunakan Wrapper List yang baru kita buat
+              $ref: "../components/schemas.yaml#/OrderListResponse"
+
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+ordersId:
+  get:
+    tags:
+      - Orders
+    summary: Get Order Detail
+    description: |
+      Mengambil detail lengkap satu pesanan berdasarkan ID.
+      Digunakan saat user mengklik salah satu pesanan di daftar untuk melihat rincian item (baju/layanan).
+    operationId: getOrderById
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        description: "ID Order (Primary Key) yang ingin dilihat"
+        required: true
+        schema:
+          type: integer
+          example: 101
+    responses:
+      "200":
+        description: Order Details Retrieved
+        content:
+          application/json:
+            schema:
+              # PENTING: Kita pakai Wrapper SINGLE (OrderResponse), bukan LIST.
+              # Karena datanya cuma satu (Object), bukan banyak (Array).
+              $ref: "../components/schemas.yaml#/OrderResponse"
+
+      "404":
+        description: Order Not Found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "not_found"
+                message: "Order with ID 101 not found"
+
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+  put:
+    tags:
+      - Orders
+    summary: Update Order Details (Edit Nota)
+    description: |
+      Mengupdate data pesanan secara menyeluruh (Customer info & Items).
+      Digunakan jika Kasir salah input atau pelanggan ingin merubah pesanan.
+
+      **LOGIKA BACKEND:**
+      1. **Cek Status:** Hanya boleh diedit jika status_internal = 'pending'. Jika sudah 'in-progress', tolak (403).
+      2. **Update Header:** Update data di tabel `orders` (nama, alamat, dll).
+      3. **Sync Items (Hard Part):** - Hapus item lama di `order_items` berdasarkan order_id.
+         - Insert item baru dari request body.
+         - Hitung ulang `total_price`.
+    operationId: updateOrder
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        description: "ID Order yang akan diedit"
+        required: true
+        schema:
+          type: integer
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            # Kita BISA me-reuse schema CreateOrderRequest karena inputnya sama persis
+            # (User kirim daftar item baru yang diinginkan)
+            $ref: "../components/schemas.yaml#/CreateOrderRequest"
+    responses:
+      "200":
+        description: Order Updated Successfully
+        content:
+          application/json:
+            schema:
+              # Kembalikan data order terbaru (hasil edit)
+              $ref: "../components/schemas.yaml#/OrderResponse"
+
+      "400":
+        description: Validation Error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+
+      "403":
+        description: Forbidden (Order Cannot be Edited)
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "forbidden_action"
+                message: "Cannot edit order that is already 'in-progress'"
+
+      "404":
+        description: Order Not Found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+  patch:
+    tags:
+      - Orders
+    summary: Update Order Status (Ganti Status Pengerjaan)
+    description: |
+      Endpoint khusus untuk mengubah `status_internal` pesanan.
+      Digunakan untuk menggerakkan workflow laundry dari Terima -> Cuci -> Selesai -> Ambil.
+
+      **LOGIKA BACKEND:**
+      1. **Validasi Flow:** Status tidak boleh lompat sembarangan (Misal: dari 'pending' tidak boleh langsung 'finished').
+      2. **Trigger Payment:** Jika status diubah jadi 'picked-up' (diambil), sistem bisa otomatis cek apakah `payment_status` sudah paid.
+    operationId: updateOrderStatus
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        description: "ID Order yang akan diproses"
+        required: true
+        schema:
+          type: integer
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - status
+            properties:
+              status:
+                type: string
+                description: "Status baru yang diinginkan"
+                enum:
+                  [
+                    "pending",
+                    "in-progress",
+                    "ready-pickup",
+                    "ready-delivery",
+                    "finished-delivery",
+                    "picked-up",
+                    "cancelled",
+                  ]
+                example: "in-progress"
+    responses:
+      "200":
+        description: Status Updated Successfully
+        content:
+          application/json:
+            schema:
+              # Mengembalikan data order terbaru agar UI bisa langsung update warna status
+              $ref: "../components/schemas.yaml#/OrderResponse"
+
+      "400":
+        description: Invalid Status Transition
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "invalid_state"
+                message: "Cannot change status from 'pending' directly to 'picked-up'"
+
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "404":
+        description: Order Not Found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"

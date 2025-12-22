@@ -8,19 +8,82 @@ info:
   version: 1.0.0
 
 servers:
-  - url: /api/v1
+  - url: https://api.server.test/v1
     description: API version 1.0
 
 paths:
-  # Kita panggil file logic (tetap modular)
+  # ===========================
+  # AUTH MODULE
+  # ===========================
   /auth/login:
     $ref: "./paths/auth.yaml#/login"
-
   /auth/logout:
     $ref: "./paths/auth.yaml#/logout"
-
   /auth/me:
     $ref: "./paths/auth.yaml#/me"
+
+  # =========================================================
+  # USERS MODULE (CRUD PEGAWAI)
+  # =========================================================
+  /users:
+    $ref: "./paths/users.yaml#/usersRoot"
+
+  # URL 2: /users/{id}
+  # Menampung UserID (Detail, Update, Delete)
+  /users/{id}:
+    $ref: "./paths/users.yaml#/usersId"
+
+  # =========================================================
+  # SERVICE CATEGORIES MODULE
+  # =========================================================
+  /categories:
+    $ref: "./paths/categories.yaml#/categoriesRoot"
+
+  /categories/{id}:
+    $ref: "./paths/categories.yaml#/categoriesId"
+
+  # =========================================================
+  # SERVICES MODULE
+  # =========================================================
+  /services:
+    $ref: "./paths/services.yaml#/servicesRoot"
+
+  /services/{id}:
+    $ref: "./paths/services.yaml#/servicesId"
+
+  # =========================================================
+  # ORDERS MODULE
+  # =========================================================
+  /orders:
+    $ref: "./paths/orders.yaml#/ordersRoot"
+
+  /orders/{id}:
+    $ref: "./paths/orders.yaml#/ordersId"
+
+  # =========================================================
+  # PAYMENTS MODULE
+  # =========================================================
+  /payments:
+    $ref: "./paths/payments.yaml#/paymentsRoot"
+
+  /payments/{id}:
+    $ref: "./paths/payments.yaml#/paymentsId"
+
+  # ========================================================
+  # DELIVERY MODULE
+  # ========================================================
+  /deliveries:
+    $ref: "./paths/deliveries.yaml#/deliveriesRoot"
+
+  /deliveries/{id}:
+    $ref: "./paths/deliveries.yaml#/deliveriesId"
+
+  # =======================================================
+  # CUSTOMER MODULE
+  # =======================================================
+
+  /orders/track/{kode_nota}:
+    $ref: "./paths/customers.yaml#/customers"
 
 components:
   securitySchemes:
@@ -50,3 +113,52 @@ components:
 
     ErrorResponse:
       $ref: "./components/schemas.yaml#/ErrorResponse"
+
+    ServiceCategory:
+      $ref: "./components/schemas.yaml#/ServiceCategory"
+
+    Services:
+      $ref: "./components/schemas.yaml#/Services"
+
+    CreateOrderRequest:
+      $ref: "./components/schemas.yaml#/CreateOrderRequest"
+
+    Order:
+      $ref: "./components/schemas.yaml#/Order"
+
+    OrderItem:
+      $ref: "./components/schemas.yaml#/OrderItem"
+
+    OrderResponse:
+      $ref: "./components/schemas.yaml#/OrderResponse"
+
+    PaginationMeta:
+      $ref: "./components/schemas.yaml#/PaginationMeta"
+
+    OrderListResponse:
+      $ref: "./components/schemas.yaml#/OrderListResponse"
+
+    CreatePaymentRequest:
+      $ref: "./components/schemas.yaml#/CreatePaymentRequest"
+
+    Payment:
+      $ref: "./components/schemas.yaml#/Payment"
+
+    PaymentResponse:
+      $ref: "./components/schemas.yaml#/PaymentResponse"
+
+    DeliveryInfo:
+      $ref: "./components/schemas.yaml#/DeliveryInfo"
+
+  # =======================================================
+  # REGISTRY RESPONSES (Agar muncul di Library Component)
+  # =======================================================
+  responses:
+    UnauthorizedError:
+      $ref: "./components/responses.yaml#/UnauthorizedError"
+
+    ForbiddenError:
+      $ref: "./components/responses.yaml#/ForbiddenError"
+
+    InternalServerError:
+      $ref: "./components/responses.yaml#/InternalServerError"

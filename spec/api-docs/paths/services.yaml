@@ -1,0 +1,220 @@
+# FILE: paths/services.yaml
+
+# ==========================================
+# 1. GROUP UNTUK URL: /services
+# (List & Create)
+# ==========================================
+servicesRoot:
+  post:
+    tags:
+      - Services
+    summary: Create new service
+    operationId: createService
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code, name, unit, unit_price] # category_id opsional krn di DB nullable
+            properties:
+              category_id: { type: integer, nullable: true }
+              code: { type: string, maxLength: 50 }
+              name: { type: string, maxLength: 150 }
+              unit: { type: string, maxLength: 20, example: "kg" }
+              unit_price: { type: integer, example: 7000 }
+    responses:
+      "201":
+        description: Service created
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "../components/schemas.yaml#/Services"
+                message: { type: string, example: "Service created" }
+
+      # [MANUAL EXAMPLE] 400 Validation
+      "400":
+        description: Validation Error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "validation_error"
+                message: "Price cannot be negative"
+
+      # [MANUAL EXAMPLE] 409 Conflict (PENTING: Karena 'code' UNIQUE)
+      "409":
+        description: Conflict (Duplicate Code)
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "conflict_error"
+                message: "Service code 'CK-REG-01' already exists"
+
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+  get:
+    tags:
+      - Services
+    summary: List all services
+    operationId: listServices
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: category_id
+        in: query
+        description: Filter by category.
+        schema: { type: integer }
+      - name: is_active
+        in: query
+        schema: { type: boolean }
+    responses:
+      "200":
+        description: Success
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: "../components/schemas.yaml#/Services"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+# ==========================================
+# 2. GROUP UNTUK URL: /services/{id}
+# (Detail, Update, Delete)
+# ==========================================
+servicesId:
+  get:
+    tags:
+      - Services
+    summary: Get service detail
+    operationId: getServiceDetail
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    responses:
+      "200":
+        description: Success
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "../components/schemas.yaml#/Services"
+      "404":
+        description: Not Found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "resource_not_found"
+                message: "Service with ID 10 not found"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+  put:
+    tags:
+      - Services
+    summary: Update service
+    operationId: updateService
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              category_id: { type: integer }
+              name: { type: string }
+              unit: { type: string }
+              unit_price: { type: integer }
+              is_active: { type: boolean }
+    responses:
+      "200":
+        description: Service updated
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "../components/schemas.yaml#/Services"
+                message: { type: string, example: "Updated successfully" }
+      "404":
+        description: Not Found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "resource_not_found"
+                message: "Service not found"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+  delete:
+    tags:
+      - Services
+    summary: Soft delete service
+    operationId: deleteService
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    responses:
+      "200":
+        description: Service deactivated
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message: { type: string, example: "Service deactivated" }
+      "404":
+        description: Not Found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              error:
+                code: "resource_not_found"
+                message: "Service not found"
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
