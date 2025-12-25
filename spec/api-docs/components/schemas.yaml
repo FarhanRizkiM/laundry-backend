@@ -1,81 +1,27 @@
 # FILE: components/schemas.yaml
 
-# ==========================================
-# 1. USER & AUTH MODULE (EXISTING)
-# ==========================================
-User:
-  type: object
-  properties:
-    id:
-      type: integer
-      format: int64
-      example: 3
-    name:
-      type: string
-      maxLength: 150 # Update Sesuai DB
-      example: Farhan Rizki Maulana
-    username:
-      type: string
-      maxLength: 100 # Update Sesuai DB
-      example: farhanrizkimln
-    role:
-      type: string
-      enum: [owner, kasir, staff, courier]
-      example: owner
-    phone: # <--- UPDATE BARU SESUAI DB
-      type: string
-      maxLength: 30
-      nullable: true
-      example: "081234567890"
-    is_active:
-      type: boolean
-      example: true
-      description: "If false, user is suspended/resigned (Soft Delete)."
-    created_at:
-      type: string
-      format: date-time
-      example: "2024-01-30T10:00:00Z"
+# =========================================
+# 0. SCHEMAS MODULE (REUSABLE)
+# ========================================
 
-LoginRequest:
+BaseResponses:
   type: object
   required:
-    - username
-    - password
+    - success
+    - message
   properties:
-    username:
-      type: string
-      example: farhanrizkimln
-    password:
-      type: string
-      example: password123
-
-LoginSuccess:
-  type: object
-  properties:
-    data:
-      $ref: "./schemas.yaml#/LoginData" # Self-reference
+    success:
+      type: boolean
+      description: "indikator sukses atau gagal"
+      example: true
     message:
       type: string
-      example: "Login successful"
-
-LoginData:
-  type: object
-  properties:
-    access_token:
-      type: string
-      example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-    token_type:
-      type: string
-      example: Bearer
-    expires_in:
-      type: integer
-      example: 3600
-    user:
-      $ref: "./schemas.yaml#/User" # Self-reference
-
-# ==========================================
-# 2. COMMON RESPONSES (EXISTING)
-# ==========================================
+      description: Pesan untuk user
+      example: "Operation Successful"
+    data:
+      type: object
+      nullable: true
+      description: Payload utama (bisa dioverride oleh child schemas)
 
 SuccessResponse:
   type: object
@@ -109,8 +55,141 @@ ErrorResponse:
               message:
                 type: string
 
+ErrorResponseReusable:
+  type: object
+  required:
+    - success
+    - message
+  properties:
+    success:
+      type: boolean
+      example: false
+    message:
+      type: string
+      example: "this is an error message"
+    data:
+      type: object
+      nullable: true
+      example: null
+
 # ==========================================
-# 3. SERVICE MODULE (EXISTING)
+# 1. USER & AUTH MODULE (EXISTING)
+# ==========================================
+User:
+  type: object
+  properties:
+    id:
+      type: integer
+      format: int64
+      example: 3
+    full_name:
+      type: string
+      maxLength: 150 # Update Sesuai DB
+      example: Farhan Rizki Maulana
+    username:
+      type: string
+      maxLength: 100 # Update Sesuai DB
+      example: farhanrizkimln
+    email:
+      type: string
+      format: email
+      maxLength: 150 # Update Sesuai DB
+      example: farhanrizki@gmail.com
+    role:
+      type: string
+      enum: [owner, kasir, staff, courier]
+      example: owner
+    phone_number: # <--- UPDATE BARU SESUAI DB
+      type: string
+      maxLength: 30
+      nullable: true
+      example: "081234567890"
+    is_active:
+      type: boolean
+      example: true
+      description: "If false, user is suspended/resigned (Soft Delete)."
+    created_at:
+      type: string
+      format: date-time
+      example: "2024-01-30T10:00:00Z"
+
+UserAuth:
+  type: object
+  properties:
+    id:
+      type: integer
+      format: int64
+      example: 1
+    full_name:
+      type: string
+      maxLength: 150 # Update Sesuai DB
+      example: Farhan Rizki Maulana
+    username:
+      type: string
+      maxLength: 100 # Update Sesuai DB
+      example: farhanrizkimln
+    email:
+      type: string
+      format: email
+      maxLength: 150 # Update Sesuai DB
+      example: farhanrizkimln@gmail.com
+    role:
+      type: string
+      enum: [owner, kasir, staff, courier]
+      example: owner
+
+LoginRequest:
+  type: object
+  required:
+    - username
+    - password
+  properties:
+    username:
+      type: string
+      example: farhanrizkimln
+    password:
+      type: string
+      format: password
+      example: mysecretpassword123
+
+LoginData:
+  type: object
+  properties:
+    token:
+      $ref: "./schemas.yaml#/Token"
+    user:
+      $ref: "./schemas.yaml#/UserAuth" # Self-reference
+
+Token:
+  type: object
+  properties:
+    token_type:
+      type: string
+      example: Bearer
+    access_token:
+      type: string
+      example: eyJhbGciOiJIUzI1NiIsInR...
+    refresh_token:
+      type: string
+      example: d9b2d63d-a233-4123-847a...
+    expires_in:
+      type: integer
+      example: 3600
+
+LoginResponseSuccess:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    message:
+      type: string
+      example: "Login successful"
+    data:
+      $ref: "./schemas.yaml#/LoginData"
+
+# ==========================================
+# 2. SERVICE MODULE (EXISTING)
 # ==========================================
 
 ServiceCategory:
@@ -120,7 +199,7 @@ ServiceCategory:
       type: integer
       format: int64
       example: 1
-    name:
+    category_name:
       type: string
       maxLength: 150 # Sesuai DB VARCHAR(150)
       example: "Cuci Komplit"
@@ -136,6 +215,10 @@ ServiceCategory:
       type: string
       format: date-time
       example: "2024-02-20T10:00:00Z"
+    updated_at:
+      type: string
+      format: date-time
+      example: "2024-03-15T14:30:00Z"
 
 Services:
   type: object
@@ -177,10 +260,9 @@ Services:
       format: date-time
 
 # ==========================================
-# 4. ORDER MODULE (NEW - SESUAI DB REAL)
+# 3. ORDER MODULE (NEW - SESUAI DB REAL)
 # ==========================================
 
-# Request Body saat Kasir input Order Baru
 CreateOrderRequest:
   type: object
   required:
@@ -232,7 +314,6 @@ CreateOrderRequest:
             description: "Berat kilogram (masuk ke kolom weight_kg). Jika satuan, isi 0 atau null."
             example: 5.0
 
-# Entity Order (Header) - Sesuai Tabel `orders`
 Order:
   type: object
   properties:
@@ -308,7 +389,6 @@ Order:
       items:
         $ref: "#/OrderItem"
 
-# Entity OrderItem (Detail) - Sesuai Tabel `order_items`
 OrderItem:
   type: object
   properties:
@@ -347,7 +427,6 @@ OrderItem:
       description: "Hasil kali (Qty/Weight * Unit Price)"
       example: 40000
 
-# Wrapper Response khusus Order (Message + Data)
 OrderResponse:
   type: object
   properties:
@@ -358,10 +437,9 @@ OrderResponse:
       $ref: "#/Order"
 
 # ==========================================
-# 5. LIST RESPONSE WRAPPER (Pagination)
+# 4. LIST RESPONSE WRAPPER (Pagination)
 # ==========================================
 
-# Metadata untuk Pagination (Info Halaman)
 PaginationMeta:
   type: object
   properties:
@@ -378,7 +456,6 @@ PaginationMeta:
       type: integer
       example: 10
 
-# Wrapper untuk Response berupa LIST (Array)
 OrderListResponse:
   type: object
   properties:
@@ -394,10 +471,9 @@ OrderListResponse:
       $ref: "#/PaginationMeta"
 
 # ==========================================
-# 6. PAYMENT MODULE
+# 5. PAYMENT MODULE
 # ==========================================
 
-# Request Body (Input Kasir)
 CreatePaymentRequest:
   type: object
   required:
@@ -424,7 +500,6 @@ CreatePaymentRequest:
       description: "Waktu uang diterima (Boleh kosong, default: NOW)"
       example: "2023-12-20T14:00:00Z"
 
-# Entity Payment (Database Snapshot)
 Payment:
   type: object
   properties:
@@ -459,7 +534,6 @@ Payment:
       nullable: true
       description: "Diisi jika pembayaran dibatalkan (Soft Delete)"
 
-# Response Wrapper
 PaymentResponse:
   type: object
   properties:
@@ -470,7 +544,7 @@ PaymentResponse:
       $ref: "#/Payment"
 
 # ==========================================
-# 7. DELIVERY MODULE
+# 6. DELIVERY MODULE
 # ==========================================
 
 DeliveryInfo:

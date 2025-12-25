@@ -8,23 +8,23 @@ UnauthorizedError:
   content:
     application/json:
       schema:
-        $ref: "./schemas.yaml#/ErrorResponse"
+        $ref: "./schemas.yaml#/ErrorResponseReusable"
       example:
-        error:
-          code: unauthorized
-          message: Invalid or missing access token
+        success: false
+        message: Invalid or missing access token
+        data: null
 
 ## Error 403
 ForbiddenError:
-  description: Forbidden. The request was valid, but the server is refusing action.
+  description: Insufficient Permissions
   content:
     application/json:
       schema:
-        $ref: "./schemas.yaml#/ErrorResponse"
+        $ref: "./schemas.yaml#/ErrorResponseReusable"
       example:
-        error:
-          code: insufficient_permissions
-          message: You do not have permission to access this resource
+        success: false
+        message: You do not have permission to access this resource
+        data: null
 
 ## Error 500
 InternalServerError:
@@ -32,8 +32,8 @@ InternalServerError:
   content:
     application/json:
       schema:
-        $ref: "./schemas.yaml#/ErrorResponse"
+        $ref: "./schemas.yaml#/ErrorResponseReusable"
       example:
-        error:
-          code: internal_server_error
-          message: An unexpected error occurred
+        success: false
+        message: An unexpected error occurred
+        data: null

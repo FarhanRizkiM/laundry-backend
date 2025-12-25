@@ -14,83 +14,222 @@ login:
             $ref: "../components/schemas.yaml#/LoginRequest"
     responses:
       "200":
-        description: Login successful
+        description: Login Successfully
         content:
           application/json:
             schema:
-              $ref: "../components/schemas.yaml#/LoginSuccess"
+              $ref: "../components/schemas.yaml#/LoginResponseSuccess"
+
       "400":
-        description: Validation error (Input Missing)
+        description: Validation Error (Input Missing/Wrong Format)
         content:
           application/json:
             schema:
-              $ref: "../components/schemas.yaml#/ErrorResponse"
+              $ref: "../components/schemas.yaml#/ErrorResponseReusable"
             example:
-              error:
-                code: validation_error
-                message: Input validation failed
-                details:
-                  - field: username and password
-                    message: required
+              success: false
+              message: Input Validation Failed
+              data:
+                username: Username is required
+                password: Password too short
+
       "401":
-        description: Invalid credentials (Username/Password Wrong)
+        description: Invalid Credentials (Username/Password Wrong)
         content:
           application/json:
             schema:
-              $ref: "../components/schemas.yaml#/ErrorResponse"
+              $ref: "../components/schemas.yaml#/ErrorResponseReusable"
             example:
-              error:
-                code: invalid_credentials
-                message: Username or password is incorrect
-      "403":
-        $ref: "../components/responses.yaml#/ForbiddenError"
+              success: false
+              message: Username or password is incorrect
+              data: null
+
+      # "403":
+      #   $ref: "../components/responses.yaml#/ForbiddenError"
+
+      "500":
+        $ref: "../components/responses.yaml#/InternalServerError"
+
+refreshToken:
+  post:
+    summary: Refresh Access Token
+    description: Tukar refresh token valid untuk dapat access token baru
+    tags:
+      - Auth
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - refresh_token
+            properties:
+              refresh_token:
+                type: string
+                example: "d9b2d63d-a233-4123-847a-..."
+    responses:
+      "200":
+        description: Token Berhasil Diperbarui
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/BaseResponses"
+            example:
+              success: true
+              message: Token refreshed successfully
+              data:
+                token:
+                  token_type: Bearer
+                  access_token: NEW_ACCESS_TOKEN_ABC123XYZ
+                  refresh_token: NEW_REFRESH_TOKEN_DEF456UVW
+                  expires_in: 3600
+
+      "400":
+        description: Validation Error (Missing refresh_token)
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponseReusable"
+            example:
+              success: false
+              message: Input Validation Failed
+              data:
+                refresh_token: Refresh token is required
+
+      "401":
+        description: Refresh Token Invalid or Expired
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponseReusable"
+            example:
+              success: false
+              message: Invalid or expired refresh token
+              data: null
+
       "500":
         $ref: "../components/responses.yaml#/InternalServerError"
 
 logout:
   post:
+    summary: User logout
+    description: Menghapus spesifik refresh token dari database agar sesi berakhir
     tags:
       - Auth
-    summary: User logout
-    operationId: logoutUser
     security:
-      - BearerAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - refresh_token
+            properties:
+              refresh_token:
+                type: string
+                example: "d9b2d63d-a233-4123-847a-..."
     responses:
       "200":
         description: Logout successful
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                data:
-                  $ref: "../components/schemas.yaml#/SuccessResponse"
+              $ref: "../components/schemas.yaml#/BaseResponses"
+            example:
+              success: true
+              message: Logout successful
+              data: null
+
+      "400":
+        description: Validation Error (Missing refresh_token)
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponseReusable"
+            example:
+              success: false
+              message: Input Validation Failed
+              data:
+                refresh_token: Refresh token is required
+
       "401":
-        $ref: "../components/responses.yaml#/UnauthorizedError"
+        description: Invalid or Missing Access Token
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponseReusable"
+            example:
+              success: false
+              message: Invalid or missing access token
+              data: null
+
       "500":
         $ref: "../components/responses.yaml#/InternalServerError"
 
 me:
   get:
+    summary: Get Current User Profile
+    description: Mengambil data profil user yang sedang login berdasarkan Token.
     tags:
       - Auth
-    summary: Get current user
-    operationId: getCurrentUser
     security:
       - BearerAuth: []
     responses:
       "200":
-        description: Success
+        description: Profile Data Retrieved
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                data:
-                  $ref: "../components/schemas.yaml#/User"
+              $ref: "../components/schemas.yaml#/BaseResponses"
+            example:
+              success: true
+              message: User profile retrieved
+              data:
+                id: 1
+                full_name: "Farhan Rizki Maulana"
+                username: "owner01"
+                email: "owner@laundry.com"
+                role: "owner"
+                phone_number: "081234567890"
+                is_active: 1
+                last_login_at: "2025-01-01T10:00:00Z"
       "401":
-        $ref: "../components/responses.yaml#/UnauthorizedError"
-      "403":
-        $ref: "../components/responses.yaml#/ForbiddenError"
+        description: Unauthorized (Token Invalid / User Deleted / User Inactive)
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponseReusable"
+            example:
+              success: false
+              message: Unauthorized (User not found or deactivated)
+              data: null
+
       "500":
         $ref: "../components/responses.yaml#/InternalServerError"
+# me:
+#   get:
+#     tags:
+#       - Auth
+#     summary: Get current user
+#     operationId: getCurrentUser
+#     security:
+#       - BearerAuth: []
+#     responses:
+#       "200":
+#         description: Success
+#         content:
+#           application/json:
+#             schema:
+#               type: object
+#               properties:
+#                 data:
+#                   $ref: "../components/schemas.yaml#/User"
+#       "401":
+#         $ref: "../components/responses.yaml#/UnauthorizedError"
+#       "403":
+#         $ref: "../components/responses.yaml#/ForbiddenError"
+#       "500":
+#         $ref: "../components/responses.yaml#/InternalServerError"

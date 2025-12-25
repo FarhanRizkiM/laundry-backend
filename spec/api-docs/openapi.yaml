@@ -17,8 +17,13 @@ paths:
   # ===========================
   /auth/login:
     $ref: "./paths/auth.yaml#/login"
+
+  /auth/refresh:
+    $ref: "./paths/auth.yaml#/refreshToken"
+
   /auth/logout:
     $ref: "./paths/auth.yaml#/logout"
+
   /auth/me:
     $ref: "./paths/auth.yaml#/me"
 
@@ -96,14 +101,18 @@ components:
   # REGISTRY SCHEMAS (Agar nama di UI tetap cantik)
   # =======================================================
   schemas:
-    User:
+    ## Schemas Auths Module
+    UserAuth:
+      $ref: "./components/schemas.yaml#/UserAuth"
+
+    UserDetail:
       $ref: "./components/schemas.yaml#/User"
+
+    LoginResponseSuccess:
+      $ref: "./components/schemas.yaml#/LoginResponseSuccess"
 
     LoginRequest:
       $ref: "./components/schemas.yaml#/LoginRequest"
-
-    LoginSuccess:
-      $ref: "./components/schemas.yaml#/LoginSuccess"
 
     LoginData:
       $ref: "./components/schemas.yaml#/LoginData"
@@ -149,6 +158,12 @@ components:
 
     DeliveryInfo:
       $ref: "./components/schemas.yaml#/DeliveryInfo"
+
+    BaseResponses:
+      $ref: "./components/schemas.yaml#/BaseResponses"
+
+    ErrorResponseReusable:
+      $ref: "./components/schemas.yaml#/ErrorResponseReusable"
 
   # =======================================================
   # REGISTRY RESPONSES (Agar muncul di Library Component)

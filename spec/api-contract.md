@@ -29,10 +29,11 @@ Authorization: Bearer <token>
 
 ## Endpoints
 
-### Auth
+### Auths
 
 - POST /auth/login
 - POST /auth/logout
+- POST /auth/refresh-token
 - GET /auth/me
 
 ### Users
