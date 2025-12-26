@@ -568,7 +568,7 @@ Terjadi jika ID di URL bukan angka.
 
 #### 404 Not Found (User Missing)
 
-Desc
+ID user tidak ditemukan di database.
 
 ```json
 {
