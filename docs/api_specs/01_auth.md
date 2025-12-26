@@ -4,7 +4,7 @@
 
 ---
 
-### Endpoint : `POST /auth/login`
+## Endpoint : `POST /auth/login`
 
 #### Description :
 
@@ -78,7 +78,7 @@ Username tidak ditemukan atau password salah.
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan tak terduga di sisi server.
+Terjadi kesalahan di sisi server (Database down).
 
 ```json
 {
@@ -90,7 +90,7 @@ Terjadi kesalahan tak terduga di sisi server.
 
 ---
 
-### Endpoint : `POST /auth/refresh`
+## Endpoint : `POST /auth/refresh`
 
 #### Description :
 
@@ -155,7 +155,7 @@ Token sudah kadaluarsa, format salah, atau token sudah pernah dipakai sebelumnya
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan tak terduga di sisi server.
+Terjadi kesalahan di sisi server (Database down).
 
 ```json
 {
@@ -167,7 +167,7 @@ Terjadi kesalahan tak terduga di sisi server.
 
 ---
 
-### Endpoint : `POST /auth/logout`
+## Endpoint : `POST /auth/logout`
 
 ### Headers :
 
@@ -229,7 +229,7 @@ Terjadi jika Header Authorization tidak ada, format salah, atau Access Token sud
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan tak terduga di sisi server.
+Terjadi kesalahan di sisi server (Database down).
 
 ```json
 {
@@ -241,7 +241,7 @@ Terjadi kesalahan tak terduga di sisi server.
 
 ---
 
-### Endpoint : `GET /auth/me`
+## Endpoint : `GET /auth/me`
 
 ### Headers :
 
@@ -274,8 +274,10 @@ Profil ditemukan. Data user dikembalikan lengkap (kecuali password hash).
     "email": "owner@laundry.com",
     "role": "owner",
     "phone_number": "081234567890",
-    "is_active": 1,
-    "last_login_at": "2025-01-01T10:00:00Z"
+    "is_active": true,
+    "last_login_at": "2025-01-01T10:00:00Z", // <--- Tambahkan ini
+    "created_at": "2024-01-01T10:00:00Z", // <--- Tambahkan ini
+    "updated_at": "2024-01-01T10:00:00Z" // <--- Tambahkan ini
   }
 }
 ```
@@ -294,7 +296,7 @@ Terjadi jika Token tidak valid, Expired, atau User tersebut sudah dihapus/dinona
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan tak terduga di sisi server.
+Terjadi kesalahan di sisi server (Database down).
 
 ```json
 {
