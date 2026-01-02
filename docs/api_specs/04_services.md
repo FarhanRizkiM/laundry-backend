@@ -8,15 +8,16 @@
 
 ### Headers :
 
-- `Authorization: Bearer <access_token>` (Required)
+- `Authorization: Bearer <access_token>` (Required) - Hanya Owner yang diizinkan.
+- `Content-Type`: `application/json` (Required)
 
 #### Description :
 
-Endpoint ini digunakan untuk membuat Layanan/Produk baru. PENTING: Wajib menyertakan category_id yang valid. Hanya Owner yang boleh mengakses endpoint ini.
+Endpoint ini digunakan untuk menambahkan layanan laundry baru ke dalam database. Penting: Layanan harus dikaitkan dengan Kategori yang valid (melalui category_id). Selain itu, code (SKU) harus unik untuk memudahkan pencarian cepat saat transaksi.
 
 ### Request Body :
 
-Field category_id harus berupa ID Kategori yang sudah ada di database. unit dibatasi pada pilihan tertentu (enum).
+Objek JSON berisi detail layanan.
 
 ```json
 {
@@ -24,7 +25,8 @@ Field category_id harus berupa ID Kategori yang sudah ada di database. unit diba
   "code": "SVC-LKR-1", // Unique, SKU/Kode Barang
   "service_name": "Kiloan Regular", // Singular (bukan services_name)
   "unit": "kg", // Enum: "kg", "pcs"
-  "price": 7000 // Decimal/Int. Hindari float 7.0 jika bisa, gunakan nominal penuh.
+  "price": 7000, // Decimal/Int. Hindari float 7.0 jika bisa, gunakan nominal penuh.
+  "duration_hours": 72 // Integer. (72 = 3 hari, 24 = 1 hari, 12 = setengah hari, 6 = 6 jam saja).
 }
 ```
 
@@ -45,22 +47,24 @@ Layanan berhasil dibuat.
     "service_name": "Kiloan Regular",
     "unit": "kg",
     "price": 7000,
+    "duration_hours": 72, // <--- Data durasi tersimpan
     "is_active": true,
     "created_at": "2025-12-26T18:49:21.410Z",
-    "updated_at": null // harus data yang diupdate agar tidak null
+    "updated_at": null
   }
 }
 ```
 
 #### ⚠️ 400 Bad Request (Validation Error)
 
-Validasi input gagal (Harga negatif, unit tidak dikenal, atau format salah).
+Input tidak valid (misal: harga negatif, satuan salah, atau field wajib kosong).
 
 ```json
 {
   "success": false,
-  "message": "Input Validation Failed",
+  "message": "Input validation failed",
   "data": {
+    "duration_hours": "Duration must be a positive integer (greater than 0)",
     "price": "Price cannot be negative",
     "unit": "Unit must be one of: kg, pcs"
   }
@@ -69,7 +73,7 @@ Validasi input gagal (Harga negatif, unit tidak dikenal, atau format salah).
 
 #### ⚠️ 401 Unauthorized (Invalid Token)
 
-Token tidak valid.
+Token tidak valid, expired, atau tidak dikirim.
 
 ```json
 {
@@ -81,7 +85,7 @@ Token tidak valid.
 
 #### 🚫 403 Forbidden (Insufficient Permissions)
 
-User bukan Owner mencoba membuat harga/layanan.
+Token valid, tetapi role pengguna bukan Owner.
 
 ```json
 {
@@ -93,7 +97,7 @@ User bukan Owner mencoba membuat harga/layanan.
 
 #### 🔍 404 Not Found (Foreign Key Error)
 
-Terjadi jika category_id yang dikirim tidak ditemukan di database.
+ID Kategori yang dikirim tidak ditemukan di database.
 
 ```json
 {
@@ -105,19 +109,21 @@ Terjadi jika category_id yang dikirim tidak ditemukan di database.
 
 #### 💥 409 Conflict (Duplicate Data)
 
-Kode layanan (service_code) sudah terdaftar.
+Gagal simpan karena Kode Layanan atau Nama Layanan sudah ada sebelumnya.
 
 ```json
 {
   "success": false,
-  "message": "Service code 'SVC-LKR-1' already exists",
-  "data": null
+  "message": "Data already exists",
+  "data": {
+    "code": "Service code 'SVC-LKR-1' already exists"
+  }
 }
 ```
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan di sisi server (Database down).
+Terjadi kesalahan di sisi server.
 
 ```json
 {
@@ -133,15 +139,19 @@ Terjadi kesalahan di sisi server (Database down).
 
 ### Headers :
 
-- `Authorization: Bearer <access_token>` (Required)
+- `Authorization: Bearer <access_token>` (Required) - Semua Role (Owner, Staff, Kasir) boleh akses.
 
 #### Description :
 
-Endpoint ini digunakan untuk menampilkan daftar layanan/menu laundry. Sangat penting untuk operasional Kasir (memilih menu) dan Owner (melihat stok layanan). Mendukung filter kategori, pencarian kode, dan nama.
+Endpoint ini digunakan untuk mengambil daftar layanan laundry. Response dilengkapi dengan Pagination dan Filtering yang lengkap. Endpoint ini sangat krusial karena akan digunakan di halaman "Kasir" (POS) untuk memilih layanan. Data response menyertakan detail Kategori (Nested JSON) dan Durasi pengerjaan. Endpoint ini digunakan untuk mengambil daftar layanan laundry. Poin Penting:
+
+1. Respon menggunakan format Nested JSON (Objek Kategori ada di dalam Objek Layanan) agar Frontend bisa langsung menampilkan nama kategori tanpa request tambahan.
+2. Menyertakan duration_hours agar sistem Kasir bisa menghitung estimasi waktu selesai secara otomatis.
+3. Mendukung Pagination dan Filtering.
 
 ### Parameters :
 
-Parameter ini ditempel di URL (Query String).
+Parameter ini dikirim melalui URL (contoh: /services?page=1&category_id=1).
 
 | Key          | Tipe    | Default     | Deskripsi                                                              |
 | ------------ | ------- | ----------- | ---------------------------------------------------------------------- |
@@ -162,7 +172,7 @@ None (Kosong).
 
 #### ✅ 200 OK (Success)
 
-Data layanan berhasil diambil.
+Daftar layanan berhasil diambil dengan struktur data bersarang.
 
 ```json
 {
@@ -171,30 +181,42 @@ Data layanan berhasil diambil.
   "data": [
     {
       "id": 1,
-      "category_id": 1,
-      "code": "SVC-LKR-1", // Sesuai DB
-      "service_name": "Kiloan Regular", // Sesuai DB
+      "code": "SVC-LKR-1",
+      "service_name": "Kiloan Regular",
       "unit": "kg",
       "price": 7000,
+      "duration_hours": 72, // 3 Hari
       "is_active": true,
       "created_at": "2025-12-26T18:49:21.410Z",
-      "updated_at": null // karna data belum pernah diupdate.
+      "updated_at": null,
+      "category": {
+        // <--- STRUKTUR BERSARANG (NESTED)
+        "id": 1,
+        "category_name": "Laundry Kiloan",
+        "description": "Cuci pakaian sehari-hari"
+      }
     },
     {
       "id": 2,
-      "category_id": 1,
       "code": "SVC-LKK-1",
       "service_name": "Kiloan Kilat",
       "unit": "kg",
       "price": 10000,
+      "duration_hours": 6, // 6 Jam
       "is_active": true,
       "created_at": "2025-12-26T18:49:21.410Z",
-      "updated_at": null // karna data belum pernah diupdate.
+      "updated_at": null,
+      "category": {
+        // <--- Kategori ikut terbawa
+        "id": 1,
+        "category_name": "Laundry Kiloan",
+        "description": "Cuci pakaian sehari-hari"
+      }
     }
   ],
   "meta": {
     "current_page": 1,
-    "total_pages": 5,
+    "total_pages": 2,
     "total_items": 12,
     "per_page": 10
   }
@@ -203,7 +225,7 @@ Data layanan berhasil diambil.
 
 #### ⚠️ 400 Bad Request (Invalid Parameters)
 
-Terjadi jika parameter salah format (misal page=abc).
+Parameter query tidak valid.
 
 ```json
 {
@@ -218,7 +240,7 @@ Terjadi jika parameter salah format (misal page=abc).
 
 #### ⚠️ 401 Unauthorized (Invalid Token)
 
-Token tidak valid, expired, atau user belum login.
+Token tidak valid atau tidak dikirim.
 
 ```json
 {
@@ -230,7 +252,7 @@ Token tidak valid, expired, atau user belum login.
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan di sisi server (Database down).
+Terjadi kesalahan di sisi server.
 
 ```json
 {
@@ -246,15 +268,18 @@ Terjadi kesalahan di sisi server (Database down).
 
 ### Headers :
 
-- `Authorization: Bearer <access_token>` (Required)
+- `Authorization: Bearer <access_token>` (Required) - Semua Role diperbolehkan mengakses (biasanya untuk pengecekan sebelum edit atau validasi kasir).
 
 #### Description :
 
-Endpoint ini digunakan untuk melihat detail lengkap satu layanan laundry berdasarkan ID-nya. Dapat diakses oleh Owner, Kasir, dan Staff (untuk kebutuhan pengecekan harga atau detail item).
+Endpoint ini digunakan untuk mengambil detail data dari satu layanan spesifik berdasarkan ID. Biasanya digunakan oleh Frontend saat:
+
+1. Menampilkan halaman "Edit Layanan" (Pre-fill form).
+2. Kasir melakukan scan barcode (mencari detail harga & durasi).
 
 ### Parameters :
 
-Parameter ini adalah Path Variable.
+Parameter ini disisipkan langsung di URL (contoh: /services/1).
 
 | Key | Tipe | Default | Deskripsi                                     |
 | --- | ---- | ------- | --------------------------------------------- |
@@ -270,29 +295,34 @@ None (Kosong).
 
 #### ✅ 200 OK (Success)
 
-Data layanan ditemukan.
+Detail layanan ditemukan (Lengkap dengan Durasi & Info Kategori).
 
 ```json
 {
   "success": true,
-  "message": "Services detail retrieved successfully",
+  "message": "Service detail retrieved successfully",
   "data": {
     "id": 1,
-    "category_id": 1,
-    "code": "SVC-LKR-1", // Sesuai DB
-    "service_name": "Kiloan Regular", // Sesuai DB
+    "code": "SVC-LKR-1",
+    "service_name": "Kiloan Regular",
     "unit": "kg",
     "price": 7000,
+    "duration_hours": 72,
     "is_active": true,
     "created_at": "2025-12-26T18:49:21.410Z",
-    "updated_at": null // karna data belum pernah diupdate.
+    "updated_at": null,
+    "category": {
+      "id": 1,
+      "category_name": "Laundry Kiloan",
+      "description": "Cuci pakaian sehari-hari"
+    }
   }
 }
 ```
 
 #### ⚠️ 400 Bad Request (Invalid ID Format)
 
-Terjadi jika ID di URL bukan angka.
+Format ID pada URL bukan angka.
 
 ```json
 {
@@ -306,7 +336,7 @@ Terjadi jika ID di URL bukan angka.
 
 #### ⚠️ 401 Unauthorized (Invalid Token)
 
-Token tidak valid atau expired.
+Token tidak valid, expired, atau tidak dikirim.
 
 ```json
 {
@@ -318,7 +348,7 @@ Token tidak valid atau expired.
 
 #### 🔍 404 Not Found (Data Missing)
 
-ID valid (angka), tapi data layanan tidak ada di database.
+ID valid secara format, tetapi data layanan tidak ditemukan di database.
 
 ```json
 {
@@ -330,7 +360,7 @@ ID valid (angka), tapi data layanan tidak ada di database.
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan di sisi server (Database down).
+Terjadi kesalahan di sisi server.
 
 ```json
 {
@@ -346,31 +376,33 @@ Terjadi kesalahan di sisi server (Database down).
 
 ### Headers :
 
-- `Authorization: Bearer <access_token>` (Required)
+- `Authorization: Bearer <access_token>` (Required) - Hanya Owner yang diizinkan.
+- `Content-Type`: `application/json` (Required)
 
 #### Description :
 
-Endpoint ini digunakan untuk memperbarui data layanan/produk. Mendukung Partial Update (boleh kirim field yang mau diubah saja). PENTING: Hanya Owner yang boleh mengakses endpoint ini.
+Endpoint ini digunakan untuk memperbarui data layanan laundry. Owner dapat mengubah harga, nama, kategori, atau durasi pengerjaan (duration_hours). Validasi: Sistem akan mengecek kembali keunikan code (SKU) jika ada perubahan pada kode tersebut.
 
 ### Parameters :
 
-Parameter ini adalah Path Variable.
+Parameter ini disisipkan langsung di URL (contoh: /services/1).
 
-| Key | Tipe | Default | Deskripsi                          |
-| --- | ---- | ------- | ---------------------------------- |
-| id  | Int  | -       | ID Unik layanan yang ingin diedit. |
+| Key | Tipe | Required | Deskripsi                          |
+| --- | ---- | -------- | ---------------------------------- |
+| id  | Int  | Yes      | ID Unik layanan yang ingin diedit. |
 
 ### Request Body :
 
-Semua field bersifat Optional. Field category_id (jika diubah) harus valid. Field code (jika diubah) harus unik.
+Objek JSON berisi data yang ingin diubah
 
 ```json
 {
-  "category_id": 1,
-  "code": "SVC-LKR-1",
+  "category_id": 1, // Foreign Key (Bisa dipindah kategori)
+  "code": "SVC-LKR-1", // Unique (Cek duplikasi jika berubah)
   "service_name": "Kiloan Regular",
   "unit": "kg",
-  "price": 8000, // update harga
+  "price": 7000, // Update harga
+  "duration_hours": 72, // Update durasi (misal ubah estimasi hari)
   "is_active": true
 }
 ```
@@ -391,32 +423,34 @@ Data layanan berhasil diperbarui.
     "code": "SVC-LKR-1",
     "service_name": "Kiloan Regular",
     "unit": "kg",
-    "price": 8000, // hasil update harga
+    "price": 7000,
+    "duration_hours": 72, // Data durasi terbaru
     "is_active": true,
     "created_at": "2025-12-26T18:49:21.410Z",
-    "updated_at": "2025-12-26T18:49:21.410Z" // terisi karna data sudah pernah di update.
+    "updated_at": "2025-12-27T10:00:00.000Z" // Terisi tanggal baru
   }
 }
 ```
 
 #### ⚠️ 400 Bad Request (Validation Error)
 
-Terjadi jika format input salah, harga negatif, atau Foreign Key (Category ID) tidak ditemukan.
+Input tidak valid atau format salah.
 
 ```json
 {
   "success": false,
-  "message": "Input Validation Failed",
+  "message": "Input validation failed",
   "data": {
-    "category_id": "Category ID does not exist", // Validasi FK
-    "price": "Price cannot be negative"
+    "category_id": "Category ID does not exist",
+    "price": "Price cannot be negative",
+    "duration_hours": "Duration must be greater than 0"
   }
 }
 ```
 
 #### ⚠️ 401 Unauthorized (Invalid Token)
 
-Token tidak valid atau expired.
+Token tidak valid, expired, atau tidak dikirim.
 
 ```json
 {
@@ -428,7 +462,7 @@ Token tidak valid atau expired.
 
 #### 🚫 403 Forbidden (Insufficient Permissions)
 
-User bukan Owner mencoba mengedit harga/layanan.
+Token valid, tetapi role pengguna bukan Owner.
 
 ```json
 {
@@ -440,31 +474,36 @@ User bukan Owner mencoba mengedit harga/layanan.
 
 #### 404 Not Found (Service Missing)
 
-ID Layanan yang mau diedit tidak ditemukan.
+Terjadi jika:
+
+1. ID Service yang diedit tidak ditemukan.
+2. ID Category baru (category_id) tidak valid.
 
 ```json
 {
   "success": false,
-  "message": "Services not found",
+  "message": "Service not found", // atau "Category not found"
   "data": null
 }
 ```
 
 #### 💥 409 Conflict (Duplicate Code)
 
-Kode layanan baru bentrok dengan layanan lain.
+Gagal update karena kode layanan baru sudah dipakai layanan lain.
 
 ```json
 {
   "success": false,
-  "message": "Service code 'SVC-LKR-1' already exists",
-  "data": null
+  "message": "Data already exists",
+  "data": {
+    "code": "Service code 'SVC-LKR-1' already exists"
+  }
 }
 ```
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan di sisi server (Database down).
+Terjadi kesalahan di sisi server.
 
 ```json
 {
@@ -478,19 +517,19 @@ Terjadi kesalahan di sisi server (Database down).
 
 ### Headers :
 
-- `Authorization: Bearer <access_token>` (Required)
+- `Authorization: Bearer <access_token>` (Required) - Hanya Owner yang diizinkan.
 
 #### Description :
 
-Endpoint ini digunakan untuk Menonaktifkan (Soft Delete) layanan laundry. Catatan: Data tidak dihapus permanen dari database agar riwayat transaksi lama tidak error. Layanan yang dinonaktifkan tidak akan muncul lagi di menu Kasir (GET /services). Hanya Owner yang boleh melakukan ini.
+Endpoint ini digunakan untuk menonaktifkan layanan laundry (Soft Delete). Penting: Data layanan TIDAK DIHAPUS permanen dari database. Statusnya hanya diubah menjadi tidak aktif (is_active = false). Hal ini dilakukan untuk menjaga integritas data laporan. Transaksi lama yang menggunakan layanan ini tidak akan error, tetapi layanan ini tidak akan muncul lagi di menu Kasir untuk transaksi baru.
 
 ### Parameters :
 
-Parameter ini adalah Path Variable.
+Parameter ini disisipkan langsung di URL (contoh: /services/5).
 
-| Key | Tipe | Default | Deskripsi                                 |
-| --- | ---- | ------- | ----------------------------------------- |
-| id  | Int  | -       | ID Unik layanan yang ingin dinonaktifkan. |
+| Key | Tipe | Required | Deskripsi                                 |
+| --- | ---- | -------- | ----------------------------------------- |
+| id  | Int  | Yes      | ID Unik layanan yang ingin dinonaktifkan. |
 
 ### Request Body :
 
@@ -502,7 +541,7 @@ None (Kosong).
 
 #### ✅ 200 OK (Success)
 
-Layanan berhasil dinonaktifkan (Status is_active berubah jadi false).
+Layanan berhasil dinonaktifkan.
 
 ```json
 {
@@ -514,7 +553,7 @@ Layanan berhasil dinonaktifkan (Status is_active berubah jadi false).
 
 #### ⚠️ 400 Bad Request (Invalid ID Format)
 
-Terjadi jika ID di URL bukan angka.
+Format ID pada URL bukan angka.
 
 ```json
 {
@@ -540,7 +579,7 @@ Token tidak valid, expired, atau tidak dikirim.
 
 #### 🚫 403 Forbidden (Insufficient Permissions)
 
-User bukan Owner mencoba menghapus layanan.
+Token valid, tapi yang melakukan request bukan Owner.
 
 ```json
 {
@@ -552,7 +591,7 @@ User bukan Owner mencoba menghapus layanan.
 
 #### 🔍 404 Not Found (Service Missing)
 
-ID layanan tidak ditemukan di database.
+Layanan dengan ID tersebut tidak ditemukan di database.
 
 ```json
 {
@@ -564,7 +603,7 @@ ID layanan tidak ditemukan di database.
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan di sisi server (Database down).
+Terjadi kesalahan tak terduga di server.
 
 ```json
 {
