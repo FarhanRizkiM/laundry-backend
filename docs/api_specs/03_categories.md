@@ -1,6 +1,6 @@
 # LAUNDRY MANAGEMENT SYSTEM — API SPECIFICATION
 
-## CATEGORIES MODULE SPECIFICATION
+## SERVICE CATEGORIES MODULE SPECIFICATION
 
 ---
 
@@ -8,15 +8,16 @@
 
 ### Headers :
 
-- `Authorization: Bearer <access_token>` (Required)
+- `Authorization: Bearer <access_token>` (Required) - Hanya Owner yang diizinkan.
+- `Content-Type`: `application/json` (Required)
 
 #### Description :
 
-Endpoint ini digunakan untuk membuat Kategori Layanan baru (misal: "Satuan", "Kiloan", "Dry Clean"). Kategori ini nanti akan menjadi pengelompokan untuk layanan-layanan laundry.
+Endpoint ini digunakan untuk membuat Kategori Layanan baru. Kategori digunakan untuk mengelompokkan jenis layanan agar lebih rapi di laporan dan aplikasi kasir (Contoh: "Kiloan", "Satuan", "Dry Clean", "Karpet"). Hanya Owner yang memiliki hak akses untuk menambah kategori.
 
 ### Request Body :
 
-Mengirimkan object data kategori baru. Field category_name wajib diisi (Max 150 karakter) dan harus unik. Field description bersifat opsional (Max 255 karakter).
+Objek JSON berisi nama kategori dan deskripsinya.
 
 ```json
 {
@@ -41,19 +42,19 @@ Kategori berhasil dibuat.
     "description": "Cuci pakaian sehari-hari dihitung per kilogram",
     "is_active": true,
     "created_at": "2024-02-20T10:00:00Z",
-    "updated_at": null // karena belum ada update data, baru sekali ditambahkan
+    "updated_at": null
   }
 }
 ```
 
 #### ⚠️ 400 Bad Request (Validation Error)
 
-Input tidak valid (misal: nama kosong atau melebihi batas karakter).
+Validasi input gagal (nama kategori kosong).
 
 ```json
 {
   "success": false,
-  "message": "Input Validation Failed",
+  "message": "Input validation failed",
   "data": {
     "category_name": "Category name is required"
   }
@@ -62,7 +63,7 @@ Input tidak valid (misal: nama kosong atau melebihi batas karakter).
 
 #### 🚫 401 Unauthorized (Invalid Token)
 
-Token tidak valid atau expired.
+Token tidak valid atau tidak dikirim.
 
 ```json
 {
@@ -74,7 +75,7 @@ Token tidak valid atau expired.
 
 #### ⛔ 403 Forbidden (Insufficient Permissions)
 
-User bukan Owner mencoba membuat kategori.
+Token valid, tetapi role pengguna bukan Owner.
 
 ```json
 {
@@ -86,19 +87,21 @@ User bukan Owner mencoba membuat kategori.
 
 #### 💥 409 Conflict (Duplicate Data)
 
-Nama kategori sudah terdaftar sebelumnya.
+Nama kategori sudah ada di database.
 
 ```json
 {
   "success": false,
-  "message": "Category name already exists",
-  "data": null
+  "message": "Data already exists",
+  "data": {
+    "category_name": "Category 'Laundry Kiloan' already exists"
+  }
 }
 ```
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan di sisi server (Database down).
+Terjadi kesalahan di sisi server.
 
 ```json
 {
@@ -114,22 +117,22 @@ Terjadi kesalahan di sisi server (Database down).
 
 ### Headers :
 
-- `Authorization: Bearer <access_token>` (Required)
+- `Authorization: Bearer <access_token>` (Required) - Semua Role (Owner, Staff, Cashier) boleh mengakses ini (penting untuk dropdown menu di Frontend).
 
 #### Description :
 
-Endpoint ini digunakan untuk mengambil daftar semua kategori layanan. Dapat diakses oleh Semua User yang Login (Owner, Kasir, Staff) karena dibutuhkan untuk operasional transaksi. Mendukung pagination dan filter pencarian.
+Endpoint ini digunakan untuk mengambil daftar kategori layanan. Karena ini adalah endpoint "List", respon dilengkapi dengan Pagination dan Filtering (berdasarkan nama atau status aktif). Endpoint ini biasanya dipanggil saat memuat halaman daftar layanan atau saat Kasir memilih kategori di menu transaksi.
 
 ### Parameters :
 
-Parameter ini ditempel di URL (Query String).
+Parameter ini dikirim melalui URL (contoh: /categories?page=1&limit=10&is_active=true).
 
-| Key       | Tipe   | Default     | Deskripsi                                                      |
-| --------- | ------ | ----------- | -------------------------------------------------------------- |
-| page      | Int    | 1           | Halaman ke berapa yang mau diambil.                            |
-| limit     | Int    | 10, Max 100 | Jumlah data per halaman.                                       |
-| name      | String | -           | (Opsional) Cari kategori berdasarkan nama.                     |
-| is_active | String | Show all    | (Opsional) Filter status: "true" (Aktif) atau "false" (Arsip). |
+| Key       | Tipe   | Default  | Deskripsi                                                      |
+| --------- | ------ | -------- | -------------------------------------------------------------- |
+| page      | Int    | 1        | Halaman ke berapa yang mau diambil.                            |
+| limit     | Int    | 10       | Jumlah data per halaman.                                       |
+| name      | String | -        | (Opsional) Cari kategori berdasarkan nama.                     |
+| is_active | String | Show all | (Opsional) Filter status: "true" (Aktif) atau "false" (Arsip). |
 
 ### Request Body :
 
@@ -154,7 +157,7 @@ Data kategori berhasil diambil.
       "description": "Cuci pakaian sehari-hari dihitung per kilogram",
       "is_active": true,
       "created_at": "2024-02-20T10:00:00Z",
-      "updated_at": null // belum pernah di update datanya.
+      "updated_at": null
     },
     {
       "id": 2,
@@ -162,12 +165,12 @@ Data kategori berhasil diambil.
       "description": "Kategori untuk layanan per item",
       "is_active": true,
       "created_at": "2024-02-20T10:00:00Z",
-      "updated_at": "2024-03-15T14:30:00Z" // sudah pernah diupdate datanya sesuai tanggal yang tertera.
+      "updated_at": "2024-03-15T14:30:00Z"
     }
   ],
   "meta": {
     "current_page": 1,
-    "total_pages": 5,
+    "total_pages": 2,
     "total_items": 12,
     "per_page": 10
   }
@@ -176,7 +179,7 @@ Data kategori berhasil diambil.
 
 #### ⚠️ 400 Bad Request (Invalid Parameters)
 
-Terjadi jika parameter pagination salah format.
+Parameter query tidak valid (misal: page berupa huruf).
 
 ```json
 {
@@ -190,7 +193,7 @@ Terjadi jika parameter pagination salah format.
 
 #### ⚠️ 401 Unauthorized (Invalid Token)
 
-Token tidak valid, expired, atau user belum login.
+Token tidak valid, expired, atau tidak dikirim.
 
 ```json
 {
@@ -202,7 +205,7 @@ Token tidak valid, expired, atau user belum login.
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan di sisi server (Database down).
+Terjadi kesalahan di sisi server.
 
 ```json
 {
@@ -218,19 +221,19 @@ Terjadi kesalahan di sisi server (Database down).
 
 ### Headers :
 
-- `Authorization: Bearer <access_token>` (Required)
+- `Authorization: Bearer <access_token>` (Required) - Semua Role diperbolehkan mengakses (biasanya untuk pengecekan sebelum edit).
 
 #### Description :
 
-Endpoint ini digunakan untuk melihat detail data satu kategori spesifik berdasarkan ID-nya. Dapat diakses oleh semua user yang login (Owner, Kasir, Staff).
+Endpoint ini digunakan untuk mengambil detail data dari satu kategori spesifik berdasarkan ID. Biasanya digunakan oleh Frontend saat menampilkan halaman "Edit Kategori" untuk mengisi formulir dengan data yang sedang aktif di database.
 
 ### Parameters :
 
-Parameter ini adalah Path Variable.
+Parameter ini disisipkan langsung di URL (contoh: /categories/1).
 
-| Key | Tipe | Default | Deskripsi                                      |
-| --- | ---- | ------- | ---------------------------------------------- |
-| id  | Int  | -       | ID Unik kategori yang ingin dilihat detailnya. |
+| Key | Tipe | Required | Deskripsi                                      |
+| --- | ---- | -------- | ---------------------------------------------- |
+| id  | Int  | Yes      | ID Unik kategori yang ingin dilihat detailnya. |
 
 ### Request Body :
 
@@ -242,7 +245,7 @@ None (Kosong).
 
 #### ✅ 200 OK (Success)
 
-Data kategori ditemukan. Mengembalikan object detail kategori (Tanpa pagination).
+Detail kategori ditemukan.
 
 ```json
 {
@@ -254,14 +257,14 @@ Data kategori ditemukan. Mengembalikan object detail kategori (Tanpa pagination)
     "description": "Cuci pakaian sehari-hari dihitung per kilogram",
     "is_active": true,
     "created_at": "2024-02-20T10:00:00Z",
-    "updated_at": // belum pernah diupdate datanya.
+    "updated_at": null
   }
 }
 ```
 
 #### ⚠️ 400 Bad Request (Invalid ID Format)
 
-Terjadi jika ID di URL bukan angka (misal: /categories/abc).
+Format ID pada URL bukan angka.
 
 ```json
 {
@@ -275,7 +278,7 @@ Terjadi jika ID di URL bukan angka (misal: /categories/abc).
 
 #### ⚠️ 401 Unauthorized (Invalid Token)
 
-Token tidak valid, expired, atau user belum login.
+Token tidak valid, expired, atau tidak dikirim.
 
 ```json
 {
@@ -287,7 +290,7 @@ Token tidak valid, expired, atau user belum login.
 
 #### 🔍 404 Not Found (Data Missing)
 
-ID kategori valid (angka), tapi datanya tidak ditemukan di database.
+ID valid secara format, tetapi data kategori tidak ditemukan di database.
 
 ```json
 {
@@ -299,7 +302,7 @@ ID kategori valid (angka), tapi datanya tidak ditemukan di database.
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan di sisi server (Database down).
+Terjadi kesalahan di sisi server.
 
 ```json
 {
@@ -315,29 +318,30 @@ Terjadi kesalahan di sisi server (Database down).
 
 ### Headers :
 
-- `Authorization: Bearer <access_token>` (Required)
+- `Authorization: Bearer <access_token>` (Required) - Hanya Owner yang diizinkan.
+- `Content-Type`: `application/json` (Required)
 
 #### Description :
 
-Endpoint ini digunakan untuk memperbarui data kategori. Mendukung Partial Update. Hanya Owner yang memiliki izin untuk mengakses endpoint ini.
+Endpoint ini digunakan untuk memperbarui data kategori layanan. Owner dapat mengubah nama, deskripsi, atau menonaktifkan kategori (is_active: false) jika kategori tersebut sudah tidak digunakan lagi. Sistem akan memvalidasi ulang keunikan nama kategori jika ada perubahan pada nama.
 
 ### Parameters :
 
-Parameter ini adalah Path Variable.
+Parameter ini disisipkan langsung di URL (contoh: /categories/1).
 
-| Key | Tipe | Default | Deskripsi                           |
-| --- | ---- | ------- | ----------------------------------- |
-| id  | Int  | -       | ID Unik kategori yang ingin diedit. |
+| Key | Tipe | Required | Deskripsi                           |
+| --- | ---- | -------- | ----------------------------------- |
+| id  | Int  | Yes      | ID Unik kategori yang ingin diedit. |
 
 ### Request Body :
 
-Semua field bersifat Optional (Boleh dikirim salah satu saja).
+Objek JSON berisi data yang ingin diubah.
 
 ```json
 {
-  "category_name": "Laundry Satuan",
-  "description": "Kategori untuk layanan cuci satuan",
-  "is_active": true
+  "category_name": "Laundry Satuan", // Required, Unique
+  "description": "Kategori untuk layanan cuci satuan", // Optional
+  "is_active": true // Required
 }
 ```
 
@@ -345,7 +349,7 @@ Semua field bersifat Optional (Boleh dikirim salah satu saja).
 
 #### ✅ 200 OK (Success)
 
-Data berhasil diperbarui.
+Data kategori berhasil diperbarui.
 
 ```json
 {
@@ -357,19 +361,19 @@ Data berhasil diperbarui.
     "description": "Kategori untuk layanan cuci satuan",
     "is_active": true,
     "created_at": "2024-02-20T10:00:00Z",
-    "updated_at": "2025-03-15T14:30:00Z" // Data update_at muncul karena sudah di update data category.
+    "updated_at": "2025-03-15T14:30:00Z"
   }
 }
 ```
 
 #### ⚠️ 400 Bad Request (Validation Error)
 
-Format input salah atau ID bukan angka.
+Format ID salah atau input tidak valid.
 
 ```json
 {
   "success": false,
-  "message": "Input Validation Failed",
+  "message": "Input validation failed",
   "data": {
     "id": "ID must be a number",
     "category_name": "Category name is required"
@@ -379,7 +383,7 @@ Format input salah atau ID bukan angka.
 
 #### ⚠️ 401 Unauthorized (Invalid Token)
 
-Token tidak valid atau expired.
+Token tidak valid, expired, atau tidak dikirim.
 
 ```json
 {
@@ -391,7 +395,7 @@ Token tidak valid atau expired.
 
 #### 🚫 403 Forbidden (Insufficient Permissions)
 
-User bukan Owner mencoba mengedit kategori.
+Token valid, tetapi role pengguna bukan Owner.
 
 ```json
 {
@@ -401,9 +405,9 @@ User bukan Owner mencoba mengedit kategori.
 }
 ```
 
-#### 404 Not Found (Category Not Found)
+#### ❓ 404 Not Found (Category Not Found)
 
-ID kategori tidak ditemukan di database.
+ID valid, tetapi data kategori tidak ditemukan di database.
 
 ```json
 {
@@ -415,19 +419,21 @@ ID kategori tidak ditemukan di database.
 
 #### 💥 409 Conflict (Duplicate Data)
 
-User mencoba mengganti nama kategori menjadi nama yang sudah dipakai kategori lain.
+Gagal update karena nama kategori baru sudah digunakan oleh kategori lain.
 
 ```json
 {
   "success": false,
-  "message": "Category name already exists",
-  "data": null
+  "message": "Data already exists",
+  "data": {
+    "category_name": "Category name 'Laundry Satuan' already exists"
+  }
 }
 ```
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan di sisi server (Database down).
+Terjadi kesalahan di sisi server.
 
 ```json
 {
@@ -441,19 +447,19 @@ Terjadi kesalahan di sisi server (Database down).
 
 ### Headers :
 
-- `Authorization: Bearer <access_token>` (Required)
+- `Authorization: Bearer <access_token>` (Required) - Hanya Owner yang diizinkan.
 
 #### Description :
 
-Endpoint ini digunakan untuk Menonaktifkan (Soft Delete) kategori layanan. Catatan Penting: Kategori tidak dihapus permanen agar riwayat transaksi masa lalu tetap aman. Namun, kategori ini akan hilang dari menu pemilihan saat Kasir membuat transaksi baru. Hanya Owner yang boleh melakukan ini.
+Endpoint ini digunakan untuk menonaktifkan Kategori Layanan (Soft Delete). Data kategori TIDAK DIHAPUS permanen, melainkan statusnya diubah menjadi tidak aktif (is_active = false). Catatan: Ketika kategori dinonaktifkan, biasanya layanan-layanan di dalamnya akan ikut disembunyikan dari menu kasir (tergantung logika frontend), namun riwayat transaksi lama yang menggunakan kategori ini tetap aman.
 
 ### Parameters :
 
-Parameter ini adalah Path Variable.
+Parameter ini disisipkan langsung di URL (contoh: /categories/2).
 
-| Key | Tipe | Default | Deskripsi                                  |
-| --- | ---- | ------- | ------------------------------------------ |
-| id  | Int  | -       | ID Unik kategori yang ingin dinonaktifkan. |
+| Key | Tipe | Required | Deskripsi                                  |
+| --- | ---- | -------- | ------------------------------------------ |
+| id  | Int  | Yes      | ID Unik kategori yang ingin dinonaktifkan. |
 
 ### Request Body :
 
@@ -465,7 +471,7 @@ None (Kosong).
 
 #### ✅ 200 OK (Success)
 
-Kategori berhasil dinonaktifkan (Status is_active menjadi false).
+Kategori berhasil dinonaktifkan.
 
 ```json
 {
@@ -477,7 +483,7 @@ Kategori berhasil dinonaktifkan (Status is_active menjadi false).
 
 #### ⚠️ 400 Bad Request (Invalid ID Format)
 
-Terjadi jika ID di URL bukan angka.
+Format ID pada URL bukan angka.
 
 ```json
 {
@@ -503,7 +509,7 @@ Token tidak valid, expired, atau tidak dikirim.
 
 #### 🚫 403 Forbidden (Insufficient Permissions)
 
-User bukan Owner mencoba menghapus kategori.
+Token valid, tapi yang melakukan request bukan Owner.
 
 ```json
 {
@@ -515,7 +521,7 @@ User bukan Owner mencoba menghapus kategori.
 
 #### 🔍 404 Not Found (Category Missing)
 
-ID kategori tidak ditemukan di database.
+Kategori dengan ID tersebut tidak ditemukan di database.
 
 ```json
 {
@@ -527,7 +533,7 @@ ID kategori tidak ditemukan di database.
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan di sisi server (Database down).
+Terjadi kesalahan tak terduga di server.
 
 ```json
 {
