@@ -21,7 +21,7 @@ Mengirimkan object data kategori baru. Field category_name wajib diisi (Max 150 
 ```json
 {
   "category_name": "Laundry Kiloan",
-  "description": "Kategori untuk layanan cuci kiloan"
+  "description": "Cuci pakaian sehari-hari dihitung per kilogram"
 }
 ```
 
@@ -38,10 +38,10 @@ Kategori berhasil dibuat.
   "data": {
     "id": 1,
     "category_name": "Laundry Kiloan",
-    "description": "Kategori untuk layanan cuci kiloan",
+    "description": "Cuci pakaian sehari-hari dihitung per kilogram",
     "is_active": true,
     "created_at": "2024-02-20T10:00:00Z",
-    "updated_at": "2024-03-15T14:30:00Z"
+    "updated_at": null // karena belum ada update data, baru sekali ditambahkan
   }
 }
 ```
@@ -151,10 +151,10 @@ Data kategori berhasil diambil.
     {
       "id": 1,
       "category_name": "Laundry Kiloan",
-      "description": "Kategori untuk layanan cuci kiloan",
+      "description": "Cuci pakaian sehari-hari dihitung per kilogram",
       "is_active": true,
       "created_at": "2024-02-20T10:00:00Z",
-      "updated_at": "2024-03-15T14:30:00Z"
+      "updated_at": null // belum pernah di update datanya.
     },
     {
       "id": 2,
@@ -162,7 +162,7 @@ Data kategori berhasil diambil.
       "description": "Kategori untuk layanan per item",
       "is_active": true,
       "created_at": "2024-02-20T10:00:00Z",
-      "updated_at": "2024-03-15T14:30:00Z"
+      "updated_at": "2024-03-15T14:30:00Z" // sudah pernah diupdate datanya sesuai tanggal yang tertera.
     }
   ],
   "meta": {
@@ -251,10 +251,10 @@ Data kategori ditemukan. Mengembalikan object detail kategori (Tanpa pagination)
   "data": {
     "id": 1,
     "category_name": "Laundry Kiloan",
-    "description": "Kategori untuk layanan cuci kiloan",
+    "description": "Cuci pakaian sehari-hari dihitung per kilogram",
     "is_active": true,
     "created_at": "2024-02-20T10:00:00Z",
-    "updated_at": "2024-03-15T14:30:00Z"
+    "updated_at": // belum pernah diupdate datanya.
   }
 }
 ```
@@ -357,7 +357,7 @@ Data berhasil diperbarui.
     "description": "Kategori untuk layanan cuci satuan",
     "is_active": true,
     "created_at": "2024-02-20T10:00:00Z",
-    "updated_at": "2025-03-15T14:30:00Z"
+    "updated_at": "2025-03-15T14:30:00Z" // Data update_at muncul karena sudah di update data category.
   }
 }
 ```

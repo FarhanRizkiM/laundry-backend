@@ -1,30 +1,50 @@
 # LAUNDRY MANAGEMENT SYSTEM — API SPECIFICATION
 
-## SERVICES MODULE SPECIFICATION
+## ORDERS MODULE SPECIFICATION
 
 ---
 
-## Endpoint : `POST /services`
+## Endpoint : `POST /orders`
 
 ### Headers :
 
 - `Authorization: Bearer <access_token>` (Required)
+- `Content-Type: application/json` (Required)
 
 #### Description :
 
-Endpoint ini digunakan untuk membuat Layanan/Produk baru. PENTING: Wajib menyertakan category_id yang valid. Hanya Owner yang boleh mengakses endpoint ini.
+Endpoint ini digunakan oleh Kasir (Staff) atau Owner untuk mencatat transaksi baru (Membuat Tagihan). Saat endpoint ini dipanggil, Backend akan:
+
+1. Menghitung Total Harga (Berdasarkan harga layanan di database x berat/jumlah).
+2. Menghitung Estimasi Selesai otomatis (Berdasarkan durasi layanan terlama).
+3. Generate Invoice Number unik (Contoh: INV/2025/01/1001).
+4. Set status pembayaran default menjadi unpaid.
 
 ### Request Body :
 
-Field category_id harus berupa ID Kategori yang sudah ada di database. unit dibatasi pada pilihan tertentu (enum).
+Data input yang dikirimkan oleh Kasir. Catatan: Field estimated_ready_at dihapus karena sudah otomatis.
 
 ```json
 {
-  "category_id": 1, // Foreign Key (Wajib Valid)
-  "code": "SVC-LKR-1", // Unique, SKU/Kode Barang
-  "service_name": "Kiloan Regular", // Singular (bukan services_name)
-  "unit": "kg", // Enum: "kg", "pcs"
-  "price": 7000 // Decimal/Int. Hindari float 7.0 jika bisa, gunakan nominal penuh.
+  "customer_name": "Bu Rina",
+  "customer_phone": "081223334444",
+  "customer_address": "Jl. Mawar No 10",
+  "is_delivery": 0,
+  "notes": "jangan dicampur baju putih",
+  "items": [
+    {
+      "service_id": 1,
+      "item_notes": "pisahkan warna putih",
+      "quantity": 1,
+      "weight_kg": 2.5
+    },
+    {
+      "service_id": 3,
+      "item_notes": null,
+      "quantity": 1,
+      "weight_kg": 0
+    }
+  ]
 }
 ```
 
@@ -32,44 +52,40 @@ Field category_id harus berupa ID Kategori yang sudah ada di database. unit diba
 
 #### ✅ 201 Created (Success)
 
-Layanan berhasil dibuat.
+Berhasil membuat order. Backend mengembalikan ID Order (penting untuk pembayaran) dan Total Harga.
 
 ```json
 {
   "success": true,
-  "message": "Service created successfully",
+  "message": "Order created successfully",
   "data": {
-    "id": 1,
-    "category_id": 1,
-    "code": "SVC-LKR-1",
-    "service_name": "Kiloan Regular",
-    "unit": "kg",
-    "price": 7000,
-    "is_active": true,
-    "created_at": "2025-12-26T18:49:21.410Z",
-    "updated_at": null // harus data yang diupdate agar tidak null
+    "id": 101,
+    "invoice_number": "INV/2025/01/101",
+    "customer_name": "Bu Rina",
+    "total_price": 17500.0,
+    "payment_status": "unpaid",
+    "status_internal": "pending",
+    "estimated_ready_at": "2025-01-06 14:00:00",
+    "created_at": "2025-01-03 14:00:00"
   }
 }
 ```
 
 #### ⚠️ 400 Bad Request (Validation Error)
 
-Validasi input gagal (Harga negatif, unit tidak dikenal, atau format salah).
+Terjadi jika input tidak lengkap atau salah logika (Misal: Item kosong, Berat negatif).
 
 ```json
 {
   "success": false,
-  "message": "Input Validation Failed",
-  "data": {
-    "price": "Price cannot be negative",
-    "unit": "Unit must be one of: kg, pcs"
-  }
+  "message": "Items list cannot be empty",
+  "data": null
 }
 ```
 
 #### ⚠️ 401 Unauthorized (Invalid Token)
 
-Token tidak valid.
+User tidak mengirim token atau token sudah kadaluwarsa (Expired).
 
 ```json
 {
@@ -81,7 +97,7 @@ Token tidak valid.
 
 #### 🚫 403 Forbidden (Insufficient Permissions)
 
-User bukan Owner mencoba membuat harga/layanan.
+User login tapi tidak punya hak akses (Misal: Akun Kurir mencoba input order kasir).
 
 ```json
 {
@@ -93,24 +109,24 @@ User bukan Owner mencoba membuat harga/layanan.
 
 #### 🔍 404 Not Found (Foreign Key Error)
 
-Terjadi jika category_id yang dikirim tidak ditemukan di database.
+Terjadi jika Kasir mengirim service_id yang tidak ada di database (Misal: ID Service 99 padahal cuma ada 1-5).
 
 ```json
 {
   "success": false,
-  "message": "Category with ID 1 not found",
+  "message": "Service with ID 99 not found",
   "data": null
 }
 ```
 
 #### 💥 409 Conflict (Duplicate Data)
 
-Kode layanan (service_code) sudah terdaftar.
+Sangat jarang terjadi di POST, tapi bisa terjadi jika sistem gagal generate Invoice Number yang unik (Duplikat Invoice).
 
 ```json
 {
   "success": false,
-  "message": "Service code 'SVC-LKR-1' already exists",
+  "message": "Failed to generate unique invoice number, please try again",
   "data": null
 }
 ```
@@ -129,7 +145,7 @@ Terjadi kesalahan di sisi server (Database down).
 
 ---
 
-## Endpoint : `GET /services`
+## Endpoint : `GET /orders`
 
 ### Headers :
 
@@ -137,88 +153,82 @@ Terjadi kesalahan di sisi server (Database down).
 
 #### Description :
 
-Endpoint ini digunakan untuk menampilkan daftar layanan/menu laundry. Sangat penting untuk operasional Kasir (memilih menu) dan Owner (melihat stok layanan). Mendukung filter kategori, pencarian kode, dan nama.
+Endpoint ini digunakan untuk menampilkan Daftar Transaksi (Dashboard). Mendukung fitur Filter (berdasarkan status/tanggal), Pencarian (Invoice/Nama), dan Pagination (Halaman). Catatan: Jika data kosong, backend tetap mengembalikan 200 OK dengan data array kosong [], bukan 404.
 
 ### Parameters :
 
-Parameter ini ditempel di URL (Query String).
+Parameter ini ditempel di URL (Contoh: /orders?page=1&status=pending).
 
-| Key          | Tipe    | Default     | Deskripsi                                                              |
-| ------------ | ------- | ----------- | ---------------------------------------------------------------------- |
-| page         | Int     | 1           | Halaman ke berapa yang mau diambil.                                    |
-| limit        | Int     | 10, Max 100 | Jumlah data per halaman.                                               |
-| category_id  | Int     | -           | Filter layanan berdasarkan ID Kategori (misal: cuma tampilkan Kiloan). |
-| code         | String  | -           | Filter berdasarkan Kode Layanan (misal: hasil scan barcode).           |
-| service_name | String  |             | Cari layanan berdasarkan nama (Partial Search).                        |
-| is_active    | Boolean | true        | Filter status. Kasir biasanya default true.                            |
+| Key            | Tipe    | Default | Deskripsi                                                     |
+| -------------- | ------- | ------- | ------------------------------------------------------------- |
+| page           | Integer | 1       | Nomor halaman (Pagination).                                   |
+| limit          | Integer | 10      | Jumlah data per halaman.                                      |
+| search         | String  | null    | Cari berdasarkan Invoice Number atau Nama Customer.           |
+| status         | String  | null    | Filter status proses (pending, washing, ready-delivery, dll). |
+| payment_status | String  | null    | Filter pembayaran (paid, unpaid).                             |
+| date           | String  | null    | Filter tanggal transaksi (Format: YYYY-MM-DD).                |
+| sort_by        | String  | desc    | Urutan data (desc = Terbaru, asc = Terlama).                  |
 
 ### Request Body :
 
 ```json
-None (Kosong).
+None (Kosong, karena method GET tidak boleh punya body).
 ```
 
 ### Responses Body :
 
 #### ✅ 200 OK (Success)
 
-Data layanan berhasil diambil.
+Berhasil mengambil data. Perhatikan ada field meta untuk keperluan pagination Frontend.
 
 ```json
 {
   "success": true,
-  "message": "Services retrieved successfully",
+  "message": "Orders retrieved successfully",
   "data": [
     {
-      "id": 1,
-      "category_id": 1,
-      "code": "SVC-LKR-1", // Sesuai DB
-      "service_name": "Kiloan Regular", // Sesuai DB
-      "unit": "kg",
-      "price": 7000,
-      "is_active": true,
-      "created_at": "2025-12-26T18:49:21.410Z",
-      "updated_at": null // karna data belum pernah diupdate.
+      "id": 101,
+      "invoice_number": "INV/2025/01/101",
+      "customer_name": "Bu Rina",
+      "total_price": 17500.0,
+      "payment_status": "unpaid",
+      "status_internal": "pending",
+      "created_at": "2025-01-03 14:00:00"
     },
     {
-      "id": 2,
-      "category_id": 1,
-      "code": "SVC-LKK-1",
-      "service_name": "Kiloan Kilat",
-      "unit": "kg",
-      "price": 10000,
-      "is_active": true,
-      "created_at": "2025-12-26T18:49:21.410Z",
-      "updated_at": null // karna data belum pernah diupdate.
+      "id": 100,
+      "invoice_number": "INV/2025/01/100",
+      "customer_name": "Pak Budi",
+      "total_price": 50000.0,
+      "payment_status": "paid",
+      "status_internal": "washing",
+      "created_at": "2025-01-03 12:00:00"
     }
   ],
   "meta": {
     "current_page": 1,
-    "total_pages": 5,
-    "total_items": 12,
-    "per_page": 10
+    "per_page": 10,
+    "total_data": 50,
+    "total_pages": 5
   }
 }
 ```
 
-#### ⚠️ 400 Bad Request (Invalid Parameters)
+#### ⚠️ 400 Bad Request (Validation Error)
 
-Terjadi jika parameter salah format (misal page=abc).
+Terjadi jika parameter filter salah format.
 
 ```json
 {
   "success": false,
-  "message": "Invalid query parameters",
-  "data": {
-    "page": "Must be a number",
-    "category_id": "Must be a number"
-  }
+  "message": "Invalid date format, expected YYYY-MM-DD",
+  "data": null
 }
 ```
 
 #### ⚠️ 401 Unauthorized (Invalid Token)
 
-Token tidak valid, expired, atau user belum login.
+Deskripsi bagian ini
 
 ```json
 {
@@ -230,19 +240,19 @@ Token tidak valid, expired, atau user belum login.
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan di sisi server (Database down).
+Kesalahan koneksi database.
 
 ```json
 {
   "success": false,
-  "message": "An unexpected error occurred",
+  "message": "Database connection failed",
   "data": null
 }
 ```
 
 ---
 
-## Endpoint : `GET /services/{id}`
+## Endpoint : `GET /orders/{id}`
 
 ### Headers :
 
@@ -250,15 +260,15 @@ Terjadi kesalahan di sisi server (Database down).
 
 #### Description :
 
-Endpoint ini digunakan untuk melihat detail lengkap satu layanan laundry berdasarkan ID-nya. Dapat diakses oleh Owner, Kasir, dan Staff (untuk kebutuhan pengecekan harga atau detail item).
+Endpoint ini digunakan untuk melihat Detail Lengkap dari satu transaksi spesifik berdasarkan ID. Backend akan melakukan Join Table untuk mengambil data dari tabel orders, order_items, dan payments.
 
 ### Parameters :
 
 Parameter ini adalah Path Variable.
 
-| Key | Tipe | Default | Deskripsi                                     |
-| --- | ---- | ------- | --------------------------------------------- |
-| id  | Int  | -       | ID Unik layanan yang ingin dilihat detailnya. |
+| Key | Tipe | Default | Deskripsi                                       |
+| --- | ---- | ------- | ----------------------------------------------- |
+| id  | Int  | -       | ID dari Order yang ingin dilihat (Contoh: 101). |
 
 ### Request Body :
 
@@ -270,24 +280,52 @@ None (Kosong).
 
 #### ✅ 200 OK (Success)
 
-Data layanan ditemukan.
+Perhatikan struktur data. Di sini kita menampilkan object order, yang di dalamnya ada Array items dan Array payments.
 
 ```json
 {
   "success": true,
-  "message": "Services detail retrieved successfully",
+  "message": "Order details retrieved successfully",
   "data": {
-    "id": 1,
-    "category_id": 1,
-    "code": "SVC-LKR-1", // Sesuai DB
-    "service_name": "Kiloan Regular", // Sesuai DB
-    "unit": "kg",
-    "price": 7000,
-    "is_active": true,
-    "created_at": "2025-12-26T18:49:21.410Z",
-    "updated_at": null // karna data belum pernah diupdate.
+    "id": 101,
+    "invoice_number": "INV/2025/01/101",
+    "customer_name": "Bu Rina",
+    "customer_phone": "081223334444",
+    "customer_address": "Jl. Mawar No 10",
+    "is_delivery": 0,
+    "status_internal": "pending",
+    "payment_status": "unpaid",
+    "total_price": 17500.0,
+    "estimated_ready_at": "2025-01-06 14:00:00",
+    "notes": "jangan dicampur baju putih",
+    "created_at": "2025-01-03 14:00:00",
+    "items": [
+      {
+        "id": 1,
+        "service_name": "Cuci Reguler", // Backend ambil nama dari table services
+        "quantity": 1,
+        "weight_kg": 2.5,
+        "item_notes": "pisahkan warna putih",
+        "subtotal": 17500.0
+      }
+    ],
+    "payment_history": [] // Kosong jika belum ada pembayaran (Unpaid)
   }
 }
+```
+
+Contoh jika status sudah PAID (Ada data payment):
+
+```json
+"payment_history": [
+      {
+        "id": 50,
+        "date": "2025-01-03 14:05:00",
+        "amount": 17500.00,
+        "method": "cash",
+        "collected_by": "Kasir Siti"
+      }
+    ]
 ```
 
 #### ⚠️ 400 Bad Request (Invalid ID Format)
@@ -323,7 +361,7 @@ ID valid (angka), tapi data layanan tidak ada di database.
 ```json
 {
   "success": false,
-  "message": "Service not found",
+  "message": "Order with ID 9999 not found",
   "data": null
 }
 ```
@@ -342,7 +380,7 @@ Terjadi kesalahan di sisi server (Database down).
 
 ---
 
-## Endpoint : `PUT /services/{id}`
+## Endpoint : `PUT /orders/{id}`
 
 ### Headers :
 
@@ -394,7 +432,7 @@ Data layanan berhasil diperbarui.
     "price": 8000, // hasil update harga
     "is_active": true,
     "created_at": "2025-12-26T18:49:21.410Z",
-    "updated_at": "2025-12-26T18:49:21.410Z" // terisi karna data sudah pernah di update.
+    "updated_at": "2025-12-26T18:49:21.410Z"
   }
 }
 ```
@@ -474,7 +512,7 @@ Terjadi kesalahan di sisi server (Database down).
 }
 ```
 
-## Endpoint : `DELETE /services/{id}`
+## Endpoint : `PATCH /orders/{id}`
 
 ### Headers :
 

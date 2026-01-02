@@ -23,7 +23,7 @@ Mengirimkan data diri lengkap untuk pembuatan akun.
   "full_name": "Farhan Rizki Maulana", // Required, Max 100 chars
   "username": "farhanrizkimln", // Required, Unique, No spaces
   "email": "farhanrizki@gmail.com", // Required, Valid Email format
-  "password": "rahasia123", // Required, Min 8 chars
+  "password_hash": "rahasia123", // Required, Min 8 chars
   "phone_number": "081234567890", // Required, Numeric only
   "role": "owner" // Optional (Default: "staff" if empty)
 }
@@ -40,7 +40,7 @@ User berhasil dibuat. Mengembalikan data user tanpa password.
   "success": true,
   "message": "User registered successfully",
   "data": {
-    "id": 3,
+    "id": 1,
     "full_name": "Farhan Rizki Maulana",
     "username": "farhanrizkimln",
     "email": "farhanrizki@gmail.com",
@@ -62,7 +62,7 @@ Format input salah (Email tidak valid, Password kependekan, atau field wajib kos
   "message": "Input Validation Failed",
   "data": {
     "email": "Invalid email format",
-    "password": "Password must be at least 8 characters"
+    "password_hash": "Password must be at least 8 characters"
   }
 }
 ```
@@ -178,7 +178,7 @@ Berhasil mengambil daftar user. Disertai info pagination di field meta.
       "is_active": true,
       "last_login_at": null, // <--- INFO: Belum pernah login
       "created_at": "2024-01-31T10:00:00Z",
-      "updated_at": "2024-01-31T10:00:00Z"
+      "updated_at": null // <--- INFO: Belum pernah Update Data
     }
   ],
   "meta": {
@@ -332,7 +332,7 @@ User login (bukan Owner) mencoba melihat detail orang lain.
 
 #### 404 Not Found (Data Missing)
 
-[PENTING] ID valid secara format (angka), tapi datanya tidak ditemukan di database.
+ID valid secara format (angka), tapi datanya tidak ditemukan di database.
 
 ```json
 {
@@ -383,10 +383,10 @@ Semua field di bawah ini bersifat Optional (Boleh dikirim, boleh tidak).
   "full_name": "Farhan Rizki Maulana",
   "username": "farhanrizkimln", // Harus unik (jika diubah)
   "email": "farhanrizki@gmail.com", // Harus unik (jika diubah)
-  "password": "rahasia123", // Min 8 chars
+  "password_hash": "rahasia123", // Min 8 chars
   "phone_number": "081234567890",
-  "role": "owner", // hanya owners yang bisa edit
-  "is_active": true // hanya owners yang bisa edit
+  "role": "owner", // hanya owners yang bisa edit dia sebagai role apa, kalau bukan owner tidak tampil/hidden.
+  "is_active": true // hanya owners yang bisa edit dia aktif/tidak.
 }
 ```
 
@@ -424,7 +424,7 @@ Format input salah, ID bukan angka, atau password kependekan.
   "success": false,
   "message": "Input Validation Failed",
   "data": {
-    "password": "Password must be at least 8 characters",
+    "password_hash": "Password must be at least 8 characters",
     "id": "ID must be a number"
   }
 }
