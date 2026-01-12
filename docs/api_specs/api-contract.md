@@ -111,6 +111,14 @@ Authorization: Bearer <token>
 - PATCH /orders/{id}
 <!-- Fungsi: Khusus Update STATUS Order (Workflow). | Input: status (misal: 'washing', 'ready-delivery', 'cancelled'). | Logic "Side Effect" (Sangat Penting): | Saat endpoint ini dipanggil, Backend melakukan 2 hal sekaligus (Database Transaction): | 1. Update kolom status_internal di tabel orders. | 2. Auto-Insert baris baru ke tabel status_history (mencatat siapa yang ubah & jam berapa). -->
 
+### Deliveries
+
+- GET /deliveries
+<!-- Fungsi: Melihat daftar tugas kurir. | User: KHUSUS KURIR. | Filter: ?status=process (Yang sedang dibawa) & ?status=delivered (Riwayat kerja). -->
+
+- PATCH /deliveries/{id}
+<!-- Fungsi: Menyelesaikan pengiriman (Finish). | User: KHUSUS KURIR (Di lokasi customer). | Logic: Upload bukti foto & Update status order jadi finished-delivery. -->
+
 ### Payments
 
 - POST /payments
@@ -119,31 +127,8 @@ Authorization: Bearer <token>
 - GET /payments
 <!-- Fungsi: Melihat riwayat daftar pembayaran yang masuk. | User: Owner (untuk Audit) & Kasir (untuk Re-check pembukuan hari ini). | Filter: Wajib ada filter tanggal (?date=today) dan metode bayar (?method=cash). | Kenapa: Owner butuh ini untuk mencocokkan fisik uang di laci kasir dengan data di sistem setiap malam (Closingan). Jika fisik uang beda dengan data di sini, berarti ada selisih. -->
 
-- GET /payments/{id}
-<!-- Fungsi: Menampilkan detail lengkap satu transaksi pembayaran spesifik. | User: Owner (Utamanya saat hendak melakukan Audit detail atau Edit). | Skenario Penggunaan: Saat Owner melihat ada angka aneh di laporan, lalu menekan tombol "Edit". Frontend WAJIB memanggil endpoint ini dulu untuk mengambil data lama (pre-fill form) agar muncul di layar sebelum diubah. | Informasi Penting: Endpoint ini harus me-return data collected_by (nama kasir) dan created_at (jam transaksi) dengan jelas untuk bukti audit. | Kenapa: Tanpa endpoint ini, fitur Edit (PUT) akan sulit berjalan karena form editnya kosong (blind edit), dan Owner tidak bisa memverifikasi detail siapa kasir yang menginput transaksi tersebut. -->
-
-- PUT /payments/{id}
-<!-- Fungsi: Mengoreksi data pembayaran (Edit). | User: KHUSUS OWNER (Kasir dilarang akses demi keamanan keuangan). | Skenario: Human Error. Misal Kasir salah input, customer bayar Rp 50.000 tapi tertulis Rp 500.000, atau salah pilih metode bayar (Tunai jadi Transfer). | Logic Side Effect (Automation): | Saat nominal diedit, Backend harus hitung ulang total_paid di tabel orders secara real-time. | 1. Kurangi total dengan nominal lama. | 2. Tambah total dengan nominal baru. | 3. Update status lunas/belum lunasnya lagi. -->
-
 - DELETE /payments/{id}
 <!-- Fungsi: Membatalkan/Menghapus pembayaran. | User: KHUSUS OWNER. | Skenario: Transaksi double input (kasir input 2x) atau customer minta refund uang (batal total). | Logic Penting (Soft Delete): | 1. Jangan hapus permanen dari database, gunakan kolom deleted_at. | 2. PENTING: Kurangi nominal yang dihapus tadi dari total_paid di tabel orders. | 3. Jika total paid jadi 0 atau kurang dari harga, kembalikan status order ke 'unpaid'. -->
-
-### Delivery
-
-- POST /deliveries
-<!-- Fungsi: Kurir Mengambil/Klaim Order (Pick Up). | User: KHUSUS KURIR. | Logic: 1. Validasi status order harus ready-delivery. 2. Insert ke tabel deliveries. 3. Update status order jadi being-delivered. 4. Catat history: "Kurir Udin mulai pengantaran". -->
-
-- GET /deliveries
-<!-- Fungsi: Melihat daftar tugas kurir. | User: KHUSUS KURIR. | Filter: ?status=process (Yang sedang dibawa) & ?status=delivered (Riwayat kerja). -->
-
-- GET /deliveries/{id}
-<!-- Fungsi: Halaman Detail Pengiriman. | User: KHUSUS KURIR. | Kenapa: Untuk menampilkan Link Google Maps, Tombol WA Customer, dan Info Tagihan (COD). -->
-
-- PATCH /deliveries/{id}
-<!-- Fungsi: Menyelesaikan pengiriman (Finish). | User: KHUSUS KURIR (Di lokasi customer). | Logic: Upload bukti foto & Update status order jadi finished-delivery. -->
-
-- DELETE /deliveries/{id}
-<!-- Fungsi: Membatalkan tugas (Cancel Pickup). | User: KHUSUS KURIR (Hanya bisa dilakukan jika status masih 'process' / belum selesai). | Skenario: Kurir salah pencet tombol "Ambil" atau motor mogok tidak jadi antar. | Logic Coding (Revert Status): 1. Soft delete data di tabel deliveries. 2. PENTING: Kembalikan status order menjadi ready-delivery 3. Agar order tersebut muncul lagi di dashboard kurir lain dan bisa diambil orang lain. -->
 
 ### Customer (Endpoint Public Tracking)
 
