@@ -111,6 +111,17 @@ Authorization: Bearer <token>
 - PATCH /orders/{id}
 <!-- Fungsi: Khusus Update STATUS Order (Workflow). | Input: status (misal: 'washing', 'ready-delivery', 'cancelled'). | Logic "Side Effect" (Sangat Penting): | Saat endpoint ini dipanggil, Backend melakukan 2 hal sekaligus (Database Transaction): | 1. Update kolom status_internal di tabel orders. | 2. Auto-Insert baris baru ke tabel status_history (mencatat siapa yang ubah & jam berapa). -->
 
+### Payments
+
+- GET /payments
+<!-- Fungsi: Melihat riwayat daftar pembayaran yang masuk. | User: Owner (untuk Audit) & Kasir (untuk Re-check pembukuan hari ini). | Filter: Wajib ada filter tanggal (?date=today) dan metode bayar (?method=cash). | Kenapa: Owner butuh ini untuk mencocokkan fisik uang di laci kasir dengan data di sistem setiap malam (Closingan). Jika fisik uang beda dengan data di sini, berarti ada selisih. -->
+
+- GET /payments/{id}
+<!-- Fungsi: Melihat detail satu pembayaran. | Kenapa: Untuk verifikasi ulang jika ada komplain dari customer atau audit internal. -->
+
+- PATCH /payments/{id}
+<!-- Fungsi: Mengoreksi data pembayaran yang salah input. | Contoh: Kasir salah input nominal bayar (Harusnya 100.000 tertulis 10.000). | Logic Coding (Side Effect): | Setelah data di tabel payments diubah, Backend WAJIB melakukan re-calculation ke tabel orders: | 1. Hitung ulang total_paid untuk order terkait. | 2. Update payment_status sesuai kondisi terbaru (paid/unpaid/partial). -->
+
 ### Deliveries
 
 - GET /deliveries
@@ -118,17 +129,6 @@ Authorization: Bearer <token>
 
 - PATCH /deliveries/{id}
 <!-- Fungsi: Menyelesaikan pengiriman (Finish). | User: KHUSUS KURIR (Di lokasi customer). | Logic: Upload bukti foto & Update status order jadi finished-delivery. -->
-
-### Payments
-
-- POST /payments
-<!-- Fungsi: Mencatat pembayaran baru yang diterima. | User: Kasir (saat customer bayar di toko). | Input: order_id, amount (nominal), payment_method (cash/qris/transfer), bank_name (opsional). | Logic Coding (Automation): | Backend WAJIB melakukan update otomatis ke tabel orders: | 1. Tambahkan nominal ini ke kolom total_paid di tabel orders. | 2. Cek matematika: Jika total_paid >= total_price, maka update payment_status order menjadi 'paid'. | 3. Jika masih kurang, biarkan 'unpaid' (atau 'partial' jika ada). -->
-
-- GET /payments
-<!-- Fungsi: Melihat riwayat daftar pembayaran yang masuk. | User: Owner (untuk Audit) & Kasir (untuk Re-check pembukuan hari ini). | Filter: Wajib ada filter tanggal (?date=today) dan metode bayar (?method=cash). | Kenapa: Owner butuh ini untuk mencocokkan fisik uang di laci kasir dengan data di sistem setiap malam (Closingan). Jika fisik uang beda dengan data di sini, berarti ada selisih. -->
-
-- DELETE /payments/{id}
-<!-- Fungsi: Membatalkan/Menghapus pembayaran. | User: KHUSUS OWNER. | Skenario: Transaksi double input (kasir input 2x) atau customer minta refund uang (batal total). | Logic Penting (Soft Delete): | 1. Jangan hapus permanen dari database, gunakan kolom deleted_at. | 2. PENTING: Kurangi nominal yang dihapus tadi dari total_paid di tabel orders. | 3. Jika total paid jadi 0 atau kurang dari harga, kembalikan status order ke 'unpaid'. -->
 
 ### Customer (Endpoint Public Tracking)
 
@@ -140,3 +140,4 @@ Authorization: Bearer <token>
 - GET /reports/dashboard
 - GET /reports/revenue
 - GET /reports/employees
+- GET /reports/payments-summary

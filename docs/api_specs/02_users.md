@@ -6,40 +6,69 @@
 
 ## Endpoint : `POST /users`
 
+### Description :
+
+Endpoint ini digunakan oleh **Owner** untuk mendaftarkan karyawan baru ke dalam sistem. Backend akan melakukan validasi ganda (keaslian email & keunikan username), melakukan hashing password (Bcrypt), dan menyimpannya ke tabel `users`.
+
+### Role Based Access Control (RBAC) :
+
+- `Permissions`: `owner`
+
 ### Headers :
 
-- `Authorization: Bearer <access_token>` (Required) - Hanya Role Owner yang diizinkan.
-- `Content-Type`: `application/json` (Required)
+- `Authorization`: `Bearer <access_token>` (Required)
+- `Accept`: `application/json`
+- `Content-Type`: `application/json`
 
-#### Description :
+### Parameters :
 
-Endpoint ini digunakan untuk menambahkan pengguna baru (Staff, Cashier, Courier). Endpoint ini dilindungi dan hanya bisa diakses oleh Owner. Data yang dikirim akan divalidasi keunikannya (Email & Username), di-hash password-nya, lalu disimpan ke database.
+Bagian ini mendefinisikan aturan main data yang harus dikirimkan oleh klien.
+
+| Key          | Tipe   | In   | Deskripsi                                        |
+| ------------ | ------ | ---- | ------------------------------------------------ |
+| full_name    | String | Body | Nama lengkap user (Max. 150 karakter).           |
+| username     | String | Body | Username unik, tanpa spasi (Max. 100 karakter).  |
+| email        | String | Body | Email unik dan format valid (Max. 150 karakter). |
+| password     | String | Body | Kata sandi minimal 8 karakter.                   |
+| phone_number | String | Body | Nomor telepon aktif (Max. 30 karakter).          |
+| role         | Enum   | Body | Pilihan: `owner`, `cashier`, `staff`, `courier`. |
+
+```
+{
+  "full_name": "Siti Aminah",
+  "username": "sitiaminah",
+  "email": "sitiaminah@gmail.com",
+  "password": "rahasia123",
+  "phone_number": "082345678901",
+  "role": "cashier"
+}
+```
 
 ### Request Body :
 
-Data lengkap pengguna baru.
+Objek JSON yang dikirimkan untuk proses registrasi karyawan baru.
 
 ```json
 {
-  "full_name": "Siti Aminah", // Required, Max 100 chars
-  "username": "sitiaminah", // Required, Unique, No spaces
-  "email": "sitiaminah@gmail.com", // Required, Valid Email format
-  "password": "rahasia123", // Required, Min 8 chars
-  "phone_number": "082345678901", // Required, Numeric only
-  "role": "cashier" // Optional (Default: "staff" if empty)
+  "full_name": "Siti Aminah",
+  "username": "sitiaminah",
+  "email": "sitiaminah@gmail.com",
+  "password": "rahasia123",
+  "phone_number": "082345678901",
+  "role": "cashier"
 }
 ```
 
 ### Responses Body :
 
-#### ✅ 201 Created (Success)
+#### ✅ 201 Created
 
-User berhasil dibuat. Mengembalikan data user yang baru dibuat (tanpa password).
+Karyawan baru berhasil didaftarkan secara sukses.
 
 ```json
 {
   "success": true,
-  "message": "User registered successfully",
+  "message": "User created successfully",
   "data": {
     "id": 2,
     "full_name": "Siti Aminah",
@@ -47,76 +76,105 @@ User berhasil dibuat. Mengembalikan data user yang baru dibuat (tanpa password).
     "email": "sitiaminah@gmail.com",
     "role": "cashier",
     "phone_number": "082345678901",
-    "is_active": true,
-    "created_at": "2024-02-01T10:00:00Z"
+    "is_active": 1,
+    "created_at": "2025-12-28 07:24:03",
+    "updated_at": null
   }
 }
 ```
 
-#### ⚠️ 400 Bad Request (Validation Error)
+#### ⚠️ 400 Bad Request
 
-Format input salah (Email tidak valid, Password kependekan, field wajib kosong, atau format Enum role salah).
+Input tidak lolos validasi (format salah atau field kosong).
 
 ```json
 {
   "success": false,
   "message": "Input validation failed",
   "data": {
-    "email": "Invalid email format",
-    "password": "Password must be at least 8 characters",
-    "role": "Invalid role selected"
+    "error_code": "VALIDATION_ERROR",
+    "errors": {
+      "email": "Invalid email format",
+      "password": "Password must be at least 8 characters"
+    }
   }
 }
 ```
 
-#### 🚫 401 Unauthorized (Invalid Token)
+#### ⚠️ 401 Unauthorized
 
-Token tidak valid, expired, atau tidak dikirim di Header.
+Token tidak valid, expired, atau tidak disertakan.
 
 ```json
 {
   "success": false,
   "message": "Invalid or missing access token",
-  "data": null
+  "data": {
+    "error_code": "UNAUTHORIZED_ACCESS",
+    "errors": null
+  }
 }
 ```
 
-#### ⛔ 403 Forbidden (Insufficient Permissions)
+#### 🚫 403 Forbidden
 
-Token valid, tetapi Role pengguna bukan Owner. (Contoh: Staff mencoba mendaftarkan user baru).
+User memiliki token, tapi rolenya bukan `owner`.
 
 ```json
 {
   "success": false,
-  "message": "You do not have permission to perform this action",
-  "data": null
+  "message": "Your role does not have permission",
+  "data": {
+    "error_code": "FORBIDDEN_ACCESS",
+    "errors": null
+  }
 }
 ```
 
-#### 🚫 409 Conflict (Duplicate Data)
+#### 🚫 409 Conflict
 
-Data gagal disimpan karena Username atau Email sudah terdaftar sebelumnya.
+Username atau Email sudah terdaftar sebelumnya di database.
 
 ```json
 {
   "success": false,
   "message": "Data already exists",
   "data": {
-    "username": "Username 'sitiaminah' is already taken",
-    "email": "Email already registered"
+    "error_code": "DUPLICATE_DATA",
+    "errors": {
+      "username": "Username 'sitiaminah' is already taken"
+    }
+  }
+}
+```
+
+#### 🚫 429 Too Many Requests
+
+Terjadi jika terlalu banyak permintaan yang dikirim dalam waktu singkat, memicu mekanisme rate limiting.
+
+```json
+{
+  "success": false,
+  "message": "Too many requests, please try again later.",
+  "data": {
+    "error_code": "RATE_LIMIT_EXCEEDED",
+    "errors": null
   }
 }
 ```
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan di sisi server.
+Kegagalan teknis pada server atau database.
 
 ```json
 {
   "success": false,
-  "message": "An unexpected error occurred",
-  "data": null
+  "message": "An unexpected server error occurred",
+  "data": {
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "errors": null
+  }
 }
 ```
 
@@ -124,42 +182,51 @@ Terjadi kesalahan di sisi server.
 
 ## Endpoint : `GET /users`
 
+### Description :
+
+Endpoint ini digunakan oleh **Owner** untuk mendapatkan daftar seluruh akun karyawan secara terorganisir. Menggunakan teknik **Pagination** untuk efisiensi bandwidth dan mendukung pencarian dinamis (Filtering). Data ditarik langsung dari tabel `users`.
+
+### Role Based Access Control (RBAC) :
+
+- `Permissions`: `owner`
+
 ### Headers :
 
-- `Authorization: Bearer <access_token>` (Required) - Hanya Role Owner yang diizinkan.
-
-#### Description :
-
-Endpoint ini digunakan oleh Owner untuk melihat daftar seluruh akun karyawan (Staff, Cashier, Courier). Karena data pengguna bisa berjumlah banyak, endpoint ini menerapkan sistem Pagination dan mendukung Filtering (pencarian berdasarkan nama, role, atau status aktif).
+- `Authorization`: `Bearer <access_token>` (Required)
+- `Accept`: `application/json`
 
 ### Parameters :
 
-Parameter ini dikirim melalui URL (contoh: /users?page=2&limit=10&role=cashier).
+Daftar filter pencarian dan pengaturan data melalui Query String.
 
-| Key       | Tipe   | Default  | Deskripsi                                                                        |
-| --------- | ------ | -------- | -------------------------------------------------------------------------------- |
-| page      | Int    | 1        | Menentukan halaman data yang ingin diambil.                                      |
-| limit     | Int    | 10       | Jumlah data yang ditampilkan per halaman.                                        |
-| name      | String | -        | (Optional) Filter pencarian berdasarkan nama lengkap atau username.              |
-| role      | String | -        | (Optional) Filter berdasarkan jabatan (contoh: cashier, staff, courier).         |
-| is_active | String | Show all | (Optional) Filter status. Isi true untuk yang aktif, false untuk yang non-aktif. |
+| Key       | Tipe   | In    | Default | Deskripsi                                                           |
+| --------- | ------ | ----- | ------- | ------------------------------------------------------------------- |
+| page      | Int    | Query | 1       | Menentukan halaman data yang ingin diambil.                         |
+| limit     | Int    | Query | 10      | Jumlah data yang ditampilkan per halaman.                           |
+| name      | String | Query | -       | (Optional) Filter pencarian berdasarkan nama lengkap atau username. |
+| role      | Enum   | Query | -       | (Optional) Filter: owner, cashier, staff, courier.                  |
+| is_active | Int    | Query | -       | (Optional) Filter status. Isi 1 untuk aktif, 0 untuk non-aktif.     |
+
+```
+GET /api/users?page=1&limit=10&role=cashier&is_active=1
+```
 
 ### Request Body :
 
-```json
+```
 None (Kosong).
 ```
 
 ### Responses Body :
 
-#### ✅ 200 OK (Success)
+#### ✅ 200 OK
 
-Daftar pengguna berhasil diambil. Response mencakup array data pengguna dan objek meta untuk informasi halaman.
+Daftar pengguna berhasil diambil secara sukses beserta informasi metadata halaman untuk kebutuhan navigasi di Frontend.
 
 ```json
 {
   "success": true,
-  "message": "User retrieved successfully",
+  "message": "Data retrieved successfully",
   "data": [
     {
       "id": 1,
@@ -168,10 +235,10 @@ Daftar pengguna berhasil diambil. Response mencakup array data pengguna dan obje
       "email": "farhanrizki@gmail.com",
       "role": "owner",
       "phone_number": "081234567890",
-      "is_active": true,
-      "last_login_at": "2025-02-01T08:00:00Z", // <--- PENTING: Owner sedang online
-      "created_at": "2024-01-30T10:00:00Z",
-      "updated_at": "2025-02-01T08:00:00Z" // <--- PENTING: Data terakhir berubah
+      "is_active": 1,
+      "last_login_at": "2026-01-12 14:00:00",
+      "created_at": "2025-12-01 08:00:00",
+      "updated_at": null
     },
     {
       "id": 2,
@@ -180,69 +247,96 @@ Daftar pengguna berhasil diambil. Response mencakup array data pengguna dan obje
       "email": "sitiaminah@gmail.com",
       "role": "cashier",
       "phone_number": "082345678901",
-      "is_active": true,
-      "last_login_at": "2025-02-01T08:00:00Z",
-      "created_at": "2024-01-31T10:00:00Z",
-      "updated_at": null // <--- INFO: Belum pernah Update Data
+      "is_active": 1,
+      "last_login_at": "2026-01-11 10:00:00",
+      "created_at": "2025-12-28 07:24:03",
+      "updated_at": null
     }
   ],
   "meta": {
-    "current_page": 1, // "Kamu sekarang ada di Halaman 1"
-    "total_pages": 1, // "Totalnya ada 5 halaman lho"
-    "total_items": 4, // "Total karyawanmu ada 50 orang"
-    "per_page": 10 // "Di halaman ini, aku nampilin 10 orang"
+    "current_page": 1,
+    "per_page": 10,
+    "total_items": 48,
+    "total_pages": 5
   }
 }
 ```
 
-#### ⚠️ 400 Bad Request (Invalid Parameters)
+#### ⚠️ 400 Bad Request
 
-Parameter query yang dikirim tidak valid (misalnya page berupa huruf, atau limit melebihi batas).
+Parameter query tidak valid (format salah).
 
 ```json
 {
   "success": false,
-  "message": "Invalid query parameters",
+  "message": "Input validation failed",
   "data": {
-    "page": "Must be a number",
-    "limit": "Max limit is 100"
+    "error_code": "VALIDATION_ERROR",
+    "errors": {
+      "page": "Must be a number",
+      "limit": "Max limit is 100"
+    }
   }
 }
 ```
 
-#### ⚠️ 401 Unauthorized (Invalid Token)
+#### ⚠️ 401 Unauthorized
 
-Token tidak valid, expired, atau header Authorization tidak dikirim.
+Token tidak valid atau tidak disertakan.
 
 ```json
 {
   "success": false,
   "message": "Invalid or missing access token",
-  "data": null
+  "data": {
+    "error_code": "UNAUTHORIZED_ACCESS",
+    "errors": null
+  }
 }
 ```
 
-#### 🚫 403 Forbidden (Insufficient Permissions)
+#### 🚫 403 Forbidden
 
-Token valid, tetapi role pengguna bukan `Owner`.
+Akses ditolak karena pengguna bukan Owner.
 
 ```json
 {
   "success": false,
-  "message": "You do not have permission to access this resource",
-  "data": null
+  "message": "Your role does not have permission",
+  "data": {
+    "error_code": "FORBIDDEN_ACCESS",
+    "errors": null
+  }
+}
+```
+
+#### 🚫 429 Too Many Requests
+
+Terjadi jika terlalu banyak permintaan yang dikirim dalam waktu singkat, memicu mekanisme rate limiting.
+
+```json
+{
+  "success": false,
+  "message": "Too many requests, please try again later.",
+  "data": {
+    "error_code": "RATE_LIMIT_EXCEEDED",
+    "errors": null
+  }
 }
 ```
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan di sisi server.
+Kegagalan sistem saat pengambilan data.
 
 ```json
 {
   "success": false,
-  "message": "An unexpected error occurred",
-  "data": null
+  "message": "An unexpected server error occurred",
+  "data": {
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "errors": null
+  }
 }
 ```
 
@@ -250,25 +344,34 @@ Terjadi kesalahan di sisi server.
 
 ## Endpoint : `GET /users/{id}`
 
+### Description :
+
+Endpoint ini digunakan oleh **Owner** untuk mengambil data profil lengkap satu orang karyawan secara spesifik berdasarkan ID unik mereka. Backend akan memvalidasi apakah ID tersebut merupakan angka yang valid, memeriksa izin akses (Permissions), lalu melakukan query langsung ke baris data terkait di tabel `users`.
+
+### Role Based Access Control (RBAC) :
+
+- `Permissions`: `owner`
+
 ### Headers :
 
-- `Authorization: Bearer <access_token>` (Required) - Hanya Role Owner yang diizinkan.
-
-#### Description :
-
-Endpoint ini digunakan untuk mengambil data lengkap satu pengguna secara spesifik berdasarkan id. Endpoint ini biasanya digunakan saat Owner mengklik tombol "Detail" atau "Edit" pada tabel daftar pengguna.
+- `Authorization`: `Bearer <access_token>` (Required)
+- `Accept`: `application/json`
 
 ### Parameters :
 
-Parameter ini disisipkan langsung di URL (contoh: /users/5).
+Menargetkan ID unik melalui jalur URL (Path Parameter).
 
-| Key | Tipe | Default | Deskripsi                                                         |
-| --- | ---- | ------- | ----------------------------------------------------------------- |
-| id  | Int  | -       | ID Unik (Primary Key) dari pengguna yang ingin dilihat detailnya. |
+| Key | Tipe | In   | Default | Deskripsi                                                    |
+| --- | ---- | ---- | ------- | ------------------------------------------------------------ |
+| id  | Int  | Path | -       | ID Unik (Primary Key) pengguna yang ingin dilihat detailnya. |
+
+```
+GET /api/users/1
+```
 
 ### Request Body :
 
-```json
+```
 None (Kosong).
 ```
 
@@ -276,12 +379,12 @@ None (Kosong).
 
 #### ✅ 200 OK (Success)
 
-Data pengguna ditemukan dan dikembalikan.
+Data pengguna ditemukan. Perhatikan bahwa `data` berbentuk Object `{}`, bukan Array `[]`.
 
 ```json
 {
   "success": true,
-  "message": "User retrieved successfully",
+  "message": "Data retrieved successfully",
   "data": {
     "id": 1,
     "full_name": "Farhan Rizki Maulana",
@@ -289,73 +392,103 @@ Data pengguna ditemukan dan dikembalikan.
     "email": "farhanrizki@gmail.com",
     "role": "owner",
     "phone_number": "081234567890",
-    "is_active": true,
-    "last_login_at": "2025-02-01T08:00:00Z",
-    "created_at": "2024-01-30T10:00:00Z",
-    "updated_at": "2025-02-01T08:00:00Z"
+    "is_active": 1,
+    "last_login_at": "2025-12-28 05:12:36",
+    "created_at": "2025-12-28 03:12:36",
+    "updated_at": null
   }
 }
 ```
 
-#### ⚠️ 400 Bad Request (Invalid ID Format)
+#### ⚠️ 400 Bad Request
 
-Format ID yang dikirim bukan angka (misal: /users/abc).
+Format ID salah (misal: mengirimkan string alih-alih angka).
 
 ```json
 {
   "success": false,
-  "message": "Invalid ID format",
+  "message": "Input validation failed",
   "data": {
-    "id": "ID must be a number"
+    "error_code": "VALIDATION_ERROR",
+    "errors": {
+      "id": "ID must be a valid number"
+    }
   }
 }
 ```
 
-#### ⚠️ 401 Unauthorized (Invalid Token)
+#### ⚠️ 401 Unauthorized
 
-Token tidak valid, expired, atau header Authorization tidak dikirim.
+Token tidak valid, expired, atau tidak disertakan.
 
 ```json
 {
   "success": false,
   "message": "Invalid or missing access token",
-  "data": null
+  "data": {
+    "error_code": "UNAUTHORIZED_ACCESS",
+    "errors": null
+  }
 }
 ```
 
-#### 🚫 403 Forbidden (Insufficient Permissions)
+#### 🚫 403 Forbidden
 
-Token valid, tetapi role pengguna bukan Owner.
+Token Anda valid, tetapi Anda tidak memiliki hak akses (Role bukan owner) untuk melihat detail data karyawan lain.
 
 ```json
 {
   "success": false,
-  "message": "You do not have permission to access this resource",
-  "data": null
+  "message": "Your role does not have permission",
+  "data": {
+    "error_code": "FORBIDDEN_ACCESS",
+    "errors": null
+  }
 }
 ```
 
-#### 404 Not Found (Data Missing)
+#### 🚫 404 Not Found
 
-ID memiliki format yang benar (angka), tetapi data pengguna dengan ID tersebut tidak ditemukan di database.
+ID berupa angka yang valid, namun datanya tidak ada di database.
 
 ```json
 {
   "success": false,
   "message": "User not found",
-  "data": null
+  "data": {
+    "error_code": "RESOURCE_NOT_FOUND",
+    "errors": null
+  }
+}
+```
+
+#### 🚫 429 Too Many Requests
+
+Terjadi jika terlalu banyak permintaan yang dikirim dalam waktu singkat, memicu mekanisme rate limiting.
+
+```json
+{
+  "success": false,
+  "message": "Too many requests, please try again later.",
+  "data": {
+    "error_code": "RATE_LIMIT_EXCEEDED",
+    "errors": null
+  }
 }
 ```
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan di sisi server.
+Kesalahan pada sistem atau query database.
 
 ```json
 {
   "success": false,
-  "message": "An unexpected error occurred",
-  "data": null
+  "message": "An unexpected server error occurred",
+  "data": {
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "errors": null
+  }
 }
 ```
 
@@ -363,247 +496,332 @@ Terjadi kesalahan di sisi server.
 
 ## Endpoint : `PUT /users/{id}`
 
+### Description :
+
+Endpoint ini digunakan untuk memperbarui profil pengguna. Terdapat logika **Authorization** ketat:
+
+- **Owner**: Akses penuh ke seluruh baris data di tabel `users`.
+- **Non-Owner**: Hanya diizinkan mengubah data profil mereka sendiri. Field `role` dan `is_active` akan diabaikan oleh sistem demi keamanan jika dikirim oleh non-owner.
+
+### Role Based Access Control (RBAC) :
+
+- `Permissions`: `owner, cashier, staff, courier`
+
 ### Headers :
 
-- `Authorization: Bearer <access_token>` (Required)
-
-  - Owner: Bisa mengakses ID siapapun.
-  - Staff/Courier/Cashier: Hanya bisa mengakses ID miliknya sendiri (sesuai token).
-
-- `Content-Type`: `application/json` (Required)
-
-#### Description :
-
-Endpoint ini digunakan untuk memperbarui data pengguna. Logika akses terbagi dua:
-
-1. Owner: Bisa mengedit data seluruh karyawan, termasuk mengubah jabatan (role) dan menonaktifkan akun (is_active).
-2. User Biasa: Hanya bisa mengedit data dirinya sendiri. Jika User Biasa mencoba mengubah role atau is_active, sistem akan mengabaikan perubahan tersebut (tetap menggunakan nilai lama) demi keamanan.
+- `Authorization`: `Bearer <access_token>` (Required)
+- `Accept`: `application/json`
+- `Content-Type`: `application/json`
 
 ### Parameters :
 
-Parameter ini disisipkan langsung di URL (contoh: /users/5).
+Bagian ini menggunakan Path Parameter untuk menentukan target pengguna yang akan diperbarui.
 
-| Key | Tipe | Default | Deskripsi                       |
-| --- | ---- | ------- | ------------------------------- |
-| id  | Int  | -       | ID Unik user yang ingin diedit. |
+| Key | Tipe | In   | Default | Deskripsi                       |
+| --- | ---- | ---- | ------- | ------------------------------- |
+| id  | Int  | Path | -       | ID Unik user yang ingin diedit. |
+
+```
+PUT /api/users/1
+```
+
+### Logic Guard :
+
+| Skenario                   | Izin Akses              | Field yang Boleh Diubah            |
+| -------------------------- | ----------------------- | ---------------------------------- |
+| Owner akses ID siapa saja  | DIIZINKAN               | Semua field tanpa pengecualian     |
+| User akses ID diri sendiri | DIIZINKAN               | Semua kecuali `role` & `is_active` |
+| User akses ID orang lain   | DITOLAK (403 Forbidden) | -                                  |
 
 ### Request Body :
 
-Objek JSON berisi data yang ingin diubah.
+Kirimkan data yang ingin diubah. Field yang tidak dikirimkan akan tetap menggunakan nilai lama di database.
 
 ```json
 {
-  "full_name": "Farhan Rizki Maulana", // Required
-  "username": "farhanrizkimln", // Required, Unique
-  "email": "farhanrizki@gmail.com", // Required, Valid Email
-  "password": "barurahasia", // Optional (Isi jika ganti pass, kosong jika tetap)
-  "phone_number": "081234567890", // Optional
-  "role": "owner", // Optional (Hanya diproses jika requester adalah OWNER)
-  "is_active": true // Optional (Hanya diproses jika requester adalah OWNER)
+  "full_name": "Farhan Rizki Maulana",
+  "username": "farhanrizkimln",
+  "email": "farhanrizki@gmail.com",
+  "password": "barurahasia123",
+  "phone_number": "081234567890",
+  "role": "owner", // Opsional, hanya berlaku jika pengirim adalah Owner
+  "is_active": 1 // Opsional, hanya berlaku jika pengirim adalah Owner
 }
 ```
 
 ### Responses Body :
 
-#### ✅ 200 OK (Success)
+#### ✅ 200 OK
 
-Data pengguna berhasil diperbarui.
+Data pengguna berhasil diperbarui secara sukses.
 
 ```json
 {
   "success": true,
   "message": "User updated successfully",
   "data": {
-    "id": 1,
+    "id": 5,
     "full_name": "Farhan Rizki Maulana",
     "username": "farhanrizkimln",
     "email": "farhanrizki@gmail.com",
     "role": "owner",
     "phone_number": "081234567890",
-    "is_active": true,
-    "last_login_at": "2025-02-01T08:00:00Z",
-    "created_at": "2024-01-30T10:00:00Z",
-    "updated_at": "2025-02-01T09:00:00Z" // Waktu berubah sesuai saat update
+    "is_active": 1,
+    "last_login_at": "2026-01-12 08:12:36",
+    "created_at": "2025-12-28 03:12:36",
+    "updated_at": "2026-01-13 15:30:00"
   }
 }
 ```
 
-#### ⚠️ 400 Bad Request (Validation Error)
+#### ⚠️ 400 Bad Request
 
-Format input salah, password baru terlalu pendek, atau ID di URL bukan angka.
+Gagal validasi input atau format ID salah.
 
 ```json
 {
   "success": false,
   "message": "Input validation failed",
   "data": {
-    "password": "Password must be at least 8 characters",
-    "email": "Invalid email format"
+    "error_code": "VALIDATION_ERROR",
+    "errors": {
+      "password": "Password must be at least 8 characters"
+    }
   }
 }
 ```
 
-#### ⚠️ 401 Unauthorized (Invalid Token)
+#### ⚠️ 401 Unauthorized
 
-Token tidak valid, expired, atau header Authorization tidak dikirim.
+Token tidak valid atau tidak disertakan.
 
 ```json
 {
   "success": false,
   "message": "Invalid or missing access token",
-  "data": null
+  "data": {
+    "error_code": "UNAUTHORIZED_ACCESS",
+    "errors": null
+  }
 }
 ```
 
-#### 🚫 403 Forbidden (Access Denied)
+#### 🚫 403 Forbidden
 
-Terjadi jika:
-
-1. User biasa mencoba mengedit User ID orang lain.
-2. User mencoba mengubah role/is_active (opsional, bisa juga di-ignore diam-diam).
+Role yang lain mencoba mengakses ID milik orang lain.
 
 ```json
 {
   "success": false,
-  "message": "You are not allowed to edit this user's profile",
-  "data": null
+  "message": "Your role does not have permission",
+  "data": {
+    "error_code": "FORBIDDEN_ACCESS",
+    "errors": null
+  }
 }
 ```
 
-#### ❓ 404 Not Found (User not found)
+#### 🚫 404 Not Found
 
-ID valid secara format, tetapi data pengguna tidak ditemukan di database.
+ID user yang dituju tidak ada di database.
 
 ```json
 {
   "success": false,
   "message": "User not found",
-  "data": null
+  "data": {
+    "error_code": "RESOURCE_NOT_FOUND",
+    "errors": null
+  }
 }
 ```
 
-#### 💥 409 Conflict (Duplicate Data)
+#### 🚫 409 Conflict
 
-Gagal update karena Username atau Email baru yang dimasukkan sudah digunakan oleh pengguna lain.
+Username atau Email baru yang dimasukkan sudah digunakan oleh orang lain.
 
 ```json
 {
   "success": false,
   "message": "Data already exists",
   "data": {
-    "email": "Email 'farhanrizki@gmail.com' is already taken by another user"
+    "error_code": "DUPLICATE_DATA",
+    "errors": {
+      "username": "Username already taken"
+    }
+  }
+}
+```
+
+#### 🚫 429 Too Many Requests
+
+Terjadi jika terlalu banyak permintaan yang dikirim dalam waktu singkat, memicu mekanisme rate limiting.
+
+```json
+{
+  "success": false,
+  "message": "Too many requests, please try again later.",
+  "data": {
+    "error_code": "RATE_LIMIT_EXCEEDED",
+    "errors": null
   }
 }
 ```
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan di sisi server.
+Kegagalan teknis pada server atau database.
 
 ```json
 {
   "success": false,
-  "message": "An unexpected error occurred",
-  "data": null
+  "message": "An unexpected server error occurred",
+  "data": {
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "errors": null
+  }
 }
 ```
 
+---
+
 ## Endpoint : `DELETE /users/{id}`
+
+### Description :
+
+Endpoint ini digunakan untuk menghapus pengguna secara logika (**Soft Delete**). Sistem tidak akan menghapus baris data dari database, melainkan mengubah nilai `is_active` menjadi `0`. Hal ini bertujuan untuk menjaga integritas data pada riwayat transaksi laundry yang pernah ditangani oleh pengguna tersebut.
+
+### Role Based Access Control (RBAC) :
+
+- `Permissions`: `owner`
 
 ### Headers :
 
-- `Authorization: Bearer <access_token>` (Required) - Hanya Owner yang diizinkan.
-
-#### Description :
-
-Endpoint ini digunakan untuk menonaktifkan pengguna (Soft Delete). Data pengguna TIDAK DIHAPUS dari database, melainkan statusnya diubah menjadi tidak aktif (is_active = 0). Ini memastikan riwayat transaksi yang pernah dilakukan oleh pengguna tersebut tetap tersimpan aman untuk laporan.
+- `Authorization`: `Bearer <access_token>` (Required)
+- `Accept`: `application/json`
 
 ### Parameters :
 
-Parameter ini disisipkan langsung di URL (contoh: /users/5).
+Identifikasi pengguna yang akan dihapus dilakukan melalui Path Parameter.
 
-| Key | Tipe    | Required | Deskripsi                              |
-| --- | ------- | -------- | -------------------------------------- |
-| id  | Integer | Yes      | ID Unik user yang ingin dinonaktifkan. |
+| Key | Tipe    | In   | Default | Deskripsi                              |
+| --- | ------- | ---- | ------- | -------------------------------------- |
+| id  | Integer | Path | -       | ID Unik user yang ingin dinonaktifkan. |
+
+```
+DELETE /api/users/1
+```
 
 ### Request Body :
 
-```json
+```
 None (Kosong).
 ```
 
 ### Responses Body :
 
-#### ✅ 200 OK (Success)
+#### ✅ 200 OK
 
-User berhasil dinonaktifkan.
+User berhasil dinonaktifkan. Kita tetap mengirimkan objek ID sebagai konfirmasi.
 
 ```json
 {
   "success": true,
-  "message": "User deactivated successfully",
-  "data": null
-}
-```
-
-#### ⚠️ 400 Bad Request (Invalid ID Format)
-
-Format ID pada URL bukan angka.
-
-```json
-{
-  "success": false,
-  "message": "Invalid ID format",
+  "message": "User deleted successfully",
   "data": {
-    "id": "ID must be a number"
+    "id": 1
   }
 }
 ```
 
-#### ⚠️ 401 Unauthorized (Invalid Token)
+#### ⚠️ 400 Bad Request
 
-Token tidak valid, expired, atau tidak dikirim.
+Format ID pada URL tidak valid.
+
+```json
+{
+  "success": false,
+  "message": "Input validation failed",
+  "data": {
+    "error_code": "VALIDATION_ERROR",
+    "errors": {
+      "id": "ID must be a valid number"
+    }
+  }
+}
+```
+
+#### ⚠️ 401 Unauthorized
+
+Token tidak valid, expired, atau tidak disertakan.
 
 ```json
 {
   "success": false,
   "message": "Invalid or missing access token",
-  "data": null
+  "data": {
+    "error_code": "UNAUTHORIZED_ACCESS",
+    "errors": null
+  }
 }
 ```
 
-#### 🚫 403 Forbidden (Insufficient Permissions)
+#### 🚫 403 Forbidden
 
-Token valid, tapi yang melakukan request bukan Owner.
+Terjadi jika pengirim bukan Owner, atau Owner mencoba menghapus ID-nya sendiri.
 
 ```json
 {
   "success": false,
-  "message": "You do not have permission to perform this action",
-  "data": null
+  "message": "Your role does not have permission",
+  "data": {
+    "error_code": "FORBIDDEN_ACCESS",
+    "errors": null
+  }
 }
 ```
 
-#### ❓ 404 Not Found (User Missing)
+#### 🚫 404 Not Found
 
-User dengan ID tersebut tidak ditemukan di database.
+ID user tidak ditemukan di database.
 
 ```json
 {
   "success": false,
   "message": "User not found",
-  "data": null
+  "data": {
+    "error_code": "RESOURCE_NOT_FOUND",
+    "errors": null
+  }
+}
+```
+
+#### 🚫 429 Too Many Requests
+
+Terjadi jika terlalu banyak permintaan yang dikirim dalam waktu singkat, memicu mekanisme rate limiting.
+
+```json
+{
+  "success": false,
+  "message": "Too many requests, please try again later.",
+  "data": {
+    "error_code": "RATE_LIMIT_EXCEEDED",
+    "errors": null
+  }
 }
 ```
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan tak terduga di server.
+Kesalahan teknis saat proses update di database.
 
 ```json
 {
   "success": false,
-  "message": "An unexpected error occurred",
-  "data": null
+  "message": "An unexpected server error occurred",
+  "data": {
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "errors": null
+  }
 }
 ```

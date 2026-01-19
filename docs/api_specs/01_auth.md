@@ -6,13 +6,34 @@
 
 ## Endpoint : `POST /auth/login`
 
+### Description :
+
+Endpoint ini digunakan untuk memverifikasi identitas pengguna (Otentikasi). Backend akan melakukan query ke tabel `users` untuk mencocokkan `username` dan melakukan verifikasi hash password. Jika valid, server akan menghasilkan Access Token (JWT).
+
+### Role Based Access Control (RBAC) :
+
+- `Permissions`: `owner, cashier, staff, courier`
+
 ### Headers :
 
-- `Content-Type`: `application/json` (Required)
+- `Accept`: `application/json`
+- `Content-Type`: `application/json`
 
-#### Description :
+### Parameters :
 
-Endpoint ini digunakan untuk memverifikasi identitas pengguna. Klien mengirimkan kredensial (username dan password), dan jika valid, server akan mengembalikan Access Token (JWT) untuk otorisasi serta informasi profil pengguna.
+Bagian ini mendefinisikan field yang wajib dikirimkan dalam Request Body untuk proses otentikasi. Password dikirim dalam bentuk teks biasa (plain text) melalui koneksi aman (HTTPS).
+
+| Key      | Tipe   | Location | Deskripsi                              |
+| -------- | ------ | -------- | -------------------------------------- |
+| username | String | Body     | Username unik pengguna.                |
+| password | String | Body     | Kata sandi pengguna (Min. 8 karakter). |
+
+```
+{
+  "username": "farhanrizkimln",
+  "password": "rahasia123"
+}
+```
 
 ### Request Body :
 
@@ -20,27 +41,26 @@ Objek JSON yang berisi kredensial pengguna. Password dikirim dalam bentuk teks b
 
 ```json
 {
-  "username": "farhanrizkimln", // Required, Max 100 chars (Sesuai DB)
-  "password": "rahasia123" // Required, Min 8 chars
+  "username": "farhanrizkimln",
+  "password": "rahasia123"
 }
 ```
 
 ### Responses Body :
 
-#### ✅ 200 OK (Success)
+#### ✅ 200 OK
 
-Otentikasi berhasil. Mengembalikan token akses, token refresh, dan data profil pengguna yang sedang login.
+Otentikasi berhasil. Mengembalikan sepasang token dan profil lengkap pengguna.
 
 ```json
 {
   "success": true,
-  "message": "Login successful",
+  "message": "Login successfully",
   "data": {
     "token": {
       "token_type": "Bearer",
       "access_token": "eyJhbGciOiJIUzI1NiIsInR...",
-      "refresh_token": "d9b2d63d-a233-4123-847a...",
-      "expires_in": 3600
+      "expires_in": 86400 // 24 jam dalam detik (24 * 3600)
     },
     "user": {
       "id": 1,
@@ -54,147 +74,81 @@ Otentikasi berhasil. Mengembalikan token akses, token refresh, dan data profil p
 }
 ```
 
-#### ⚠️ 400 Bad Request (Validation Error)
+#### ⚠️ 400 Bad Request
 
-Validasi input gagal. Terjadi kesalahan format pada data yang dikirim (misalnya field kosong atau password terlalu pendek).
+Terjadi jika format input tidak valid atau ada field yang kosong.
 
 ```json
 {
   "success": false,
   "message": "Input validation failed",
   "data": {
-    "username": "Username is required",
-    "password": "Password must be at least 8 characters"
-  }
-}
-```
-
-#### 🚫 401 Unauthorized (Invalid Credentials)
-
-Otentikasi gagal. Username tidak ditemukan atau password yang dimasukkan salah.
-
-```json
-{
-  "success": false,
-  "message": "Username or password is incorrect",
-  "data": null
-}
-```
-
-#### ⛔ 403 Forbidden (Account Suspended)
-
-Kredensial valid, tetapi akun pengguna telah dinonaktifkan oleh administrator (is_active = 0).
-
-```json
-{
-  "success": false,
-  "message": "Your account has been deactivated. Please contact the administrator.",
-  "data": null
-}
-```
-
-#### 🔥 500 Internal Server Error
-
-Terjadi kesalahan di sisi server.
-
-```json
-{
-  "success": false,
-  "message": "An unexpected error occurred",
-  "data": null
-}
-```
-
----
-
-## Endpoint : `POST /auth/refresh`
-
-### Headers :
-
-- `Content-Type`: `application/json` (Required)
-
-#### Description :
-
-Endpoint ini digunakan untuk memperbarui Access Token yang sudah kadaluarsa tanpa mengharuskan pengguna login ulang. Endpoint ini menerapkan mekanisme Token Rotation: saat request berhasil, Refresh Token yang lama akan hangus dan digantikan dengan yang baru.
-
-### Request Body :
-
-Objek JSON yang berisi Refresh Token yang valid (didapatkan saat login sebelumnya).
-
-```json
-{
-  "refresh_token": "d9b2d63d-a233-4123-847a-..." // Required
-}
-```
-
-### Responses Body :
-
-#### ✅ 200 OK (Success)
-
-Token berhasil diperbarui. Server mengembalikan pasangan Access Token dan Refresh Token yang baru. Token lama dianggap tidak valid lagi.
-
-```json
-{
-  "success": true,
-  "message": "Token refreshed successfully",
-  "data": {
-    "token": {
-      "token_type": "Bearer",
-      "access_token": "NEW_ACCESS_TOKEN_ABC123XYZ",
-      "refresh_token": "NEW_REFRESH_TOKEN_DEF456UVW",
-      "expires_in": 3600
+    "error_code": "VALIDATION_ERROR",
+    "errors": {
+      "username": "Username is required",
+      "password": "Password must be at least 8 characters"
     }
   }
 }
 ```
 
-#### ⚠️ 400 Bad Request (Validation Error)
+#### ⚠️ 401 Unauthorized
 
-Validasi input gagal. Field refresh_token kosong atau format JSON salah.
+Username tidak ditemukan atau password salah.
 
 ```json
 {
   "success": false,
-  "message": "Input Validation Failed",
+  "message": "Authentication failed: invalid credentials or expired token",
   "data": {
-    "refresh_token": "Refresh token is required"
+    "error_code": "INVALID_CREDENTIALS",
+    "errors": null
   }
 }
 ```
 
-#### 🚫 401 Unauthorized (Invalid Credentials)
+#### 🚫 403 Forbidden
 
-Refresh token tidak valid, sudah kadaluarsa, atau sudah pernah digunakan sebelumnya (terdeteksi replay attack). Pengguna harus login ulang.
+Kredensial benar, tetapi akun diblokir atau dinonaktifkan (is_active = 0).
 
 ```json
 {
   "success": false,
-  "message": "Invalid or expired refresh token",
-  "data": null
+  "message": "Access denied: account inactive or insufficient permission",
+  "data": {
+    "error_code": "ACCOUNT_INACTIVE",
+    "errors": null
+  }
 }
 ```
 
-#### ⛔ 403 Forbidden (Account Suspended)
+#### 🚫 429 Too Many Requests
 
-Token valid, namun akun pengguna terkait telah dinonaktifkan oleh administrator (is_active = 0).
+Terlalu banyak percobaan login dalam waktu singkat, memicu mekanisme rate limiting.
 
 ```json
 {
   "success": false,
-  "message": "Your account has been deactivated. Please contact the administrator.",
-  "data": null
+  "message": "Too many login attempts, please try again later.",
+  "data": {
+    "error_code": "RATE_LIMIT_EXCEEDED",
+    "errors": null
+  }
 }
 ```
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan di sisi server.
+Kegagalan teknis pada server, seperti database timeout atau gagal melakukan signing pada JWT.
 
 ```json
 {
   "success": false,
-  "message": "An unexpected error occurred",
-  "data": null
+  "message": "An unexpected server error occurred during authentication",
+  "data": {
+    "error_code": "TOKEN_GENERATION_FAILED",
+    "errors": null
+  }
 }
 ```
 
@@ -202,88 +156,31 @@ Terjadi kesalahan di sisi server.
 
 ## Endpoint : `POST /auth/logout`
 
-### Headers :
+### Description :
 
-- `Authorization: Bearer <access_token>` (Required)
-- `Content-Type`: `application/json` (Required)
+Endpoint ini digunakan untuk mengakhiri sesi pengguna secara formal. Karena sistem menggunakan `Stateless JWT`, backend memvalidasi keabsahan token. Proses penghapusan sesi yang sebenarnya dilakukan oleh Frontend dengan menghapus Access Token, namun endpoint ini memastikan server mengakui akhir sesi tersebut.
 
-#### Description :
+### Role Based Access Control (RBAC) :
 
-Endpoint ini digunakan untuk mengakhiri sesi pengguna. Sistem akan memvalidasi Access Token dan menghapus/mem-blacklist Refresh Token yang dikirimkan agar tidak bisa digunakan lagi untuk memperbarui sesi. Ini memastikan pengguna benar-benar keluar dari sistem.
-
-### Request Body :
-
-Objek JSON berisi Refresh Token yang ingin dihapus dari sistem (whitelist database).
-
-```json
-{
-  "refresh_token": "d9b2d63d-a233-4123-847a-..." // Required
-}
-```
-
-### Responses Body :
-
-#### ✅ 200 OK (Success)
-
-Logout berhasil. Access Token dan Refresh Token telah dinonaktifkan.
-
-```json
-{
-  "success": true,
-  "message": "Logout successful",
-  "data": null
-}
-```
-
-#### ⚠️ 400 Bad Request (Validation Error)
-
-Validasi gagal. Refresh token tidak dikirimkan dalam body request.
-
-```json
-{
-  "success": false,
-  "message": "Input Validation Failed",
-  "data": {
-    "refresh_token": "Refresh token is required"
-  }
-}
-```
-
-#### 🚫 401 Unauthorized (Invalid Credentials)
-
-Access Token pada header tidak valid, kadaluarsa, atau tidak disertakan.
-
-```json
-{
-  "success": false,
-  "message": "Invalid or missing access token",
-  "data": null
-}
-```
-
-#### 🔥 500 Internal Server Error
-
-Terjadi kesalahan saat menghapus sesi di database.
-
-```json
-{
-  "success": false,
-  "message": "An unexpected error occurred",
-  "data": null
-}
-```
-
----
-
-## Endpoint : `GET /auth/me`
+- `Permissions`: `owner, cashier, staff, courier`
 
 ### Headers :
 
-- `Authorization: Bearer <access_token>` (Required)
+- `Authorization`: `Bearer <access_token>` (Required)
+- `Accept`: `application/json`
+- `Content-Type`: `application/json`
 
-#### Description :
+### Parameters :
 
-Endpoint ini digunakan untuk mendapatkan profil lengkap dari pengguna yang sedang login berdasarkan Access Token yang dikirimkan. Server akan mendekripsi token untuk mendapatkan ID pengguna, lalu mengambil data terbaru dari database. Endpoint ini sering digunakan untuk inisialisasi data user di Frontend (misalnya: menampilkan nama & foto profil di dashboard).
+Bagian ini tidak memerlukan data tambahan karena identifikasi sesi sepenuhnya diambil dari Authorization Header.
+
+| Key  | Tipe | In  | Deskripsi                                    |
+| ---- | ---- | --- | -------------------------------------------- |
+| None | -    | -   | Tidak ada parameter yang diperlukan di body. |
+
+```
+None (Identifikasi sesi dilakukan melalui Authorization Header).
+```
 
 ### Request Body :
 
@@ -293,61 +190,167 @@ None (Kosong).
 
 ### Responses Body :
 
-#### ✅ 200 OK (Success)
+#### ✅ 200 OK
 
-Profil pengguna berhasil diambil.
+Proses logout berhasil dilakukan secara sukses. Token yang dikirimkan telah divalidasi dan klien diinstruksikan untuk membersihkan sesi.
 
 ```json
 {
   "success": true,
-  "message": "User profile retrieved",
+  "message": "Logout successfully",
   "data": {
-    "id": 1,
-    "full_name": "Farhan Rizki Maulana",
-    "username": "owner01",
-    "email": "owner@laundry.com",
-    "role": "owner",
-    "phone_number": "081234567890",
-    "is_active": true,
-    "last_login_at": "2025-01-01T10:00:00Z",
-    "created_at": "2024-01-01T10:00:00Z",
-    "updated_at": "2024-01-01T10:00:00Z"
+    "status": "session_terminated"
   }
 }
 ```
 
-#### 🚫 401 Unauthorized (Invalid Token)
+#### ⚠️ 401 Unauthorized
 
-Token tidak valid, kadaluarsa, atau header Authorization tidak dikirim.
-
-```json
-{
-  "success": false,
-  "message": "Unauthorized access",
-  "data": null
-}
-```
-
-#### ⛔ 403 Forbidden (Account Suspended)
-
-Token valid, namun saat dicek ke database, akun pengguna tersebut telah dinonaktifkan (is_active = 0).
+Terjadi jika Access Token tidak valid, sudah kadaluarsa, atau tidak disertakan.
 
 ```json
 {
   "success": false,
-  "message": "Your account has been deactivated",
-  "data": null
+  "message": "Invalid or missing access token",
+  "data": {
+    "error_code": "UNAUTHORIZED_ACCESS",
+    "errors": null
+  }
 }
 ```
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan di sisi server.
+Terjadi kegagalan sistem internal saat memproses permintaan logout.
 
 ```json
 {
   "success": false,
-  "message": "An unexpected error occurred",
-  "data": null
+  "message": "An unexpected server error occurred during logout",
+  "data": {
+    "error_code": "LOGOUT_PROCESS_FAILED",
+    "errors": null
+  }
+}
+```
+
+---
+
+## Endpoint : `GET /auth/me`
+
+### Description :
+
+Endpoint ini digunakan untuk mengambil data profil lengkap pengguna yang sedang aktif (pemilik token). Backend akan mendekripsi token dari header untuk mendapatkan `user_id`, lalu melakukan query ke tabel `users` untuk mengambil data terbaru. Sangat berguna untuk sinkronisasi state aplikasi saat pertama kali dimuat.
+
+### Role Based Access Control (RBAC) :
+
+- `Permissions`: `owner, cashier, staff, courier`
+
+### Headers :
+
+- `Authorization`: `Bearer <access_token>` (Required)
+- `Accept`: `application/json`
+- `Content-Type`: `application/json`
+
+### Parameters :
+
+Identifikasi dilakukan sepenuhnya melalui Authorization Header. Tidak ada parameter tambahan.
+
+| Key  | Tipe | In  | Deskripsi                                                 |
+| ---- | ---- | --- | --------------------------------------------------------- |
+| None | -    | -   | Identifikasi sesi dilakukan melalui Authorization Header. |
+
+```
+None (Identifikasi sesi dilakukan melalui Authorization Header).
+```
+
+### Request Body :
+
+```json
+None (Kosong).
+```
+
+### Responses Body :
+
+#### ✅ 200 OK
+
+Profil pengguna berhasil diambil secara sukses.
+
+```json
+{
+  "success": true,
+  "message": "User profile retrieved successfully",
+  "data": {
+    "id": 1,
+    "full_name": "Farhan Rizki Maulana",
+    "username": "farhanrizkimln",
+    "email": "farhanrizki@gmail.com",
+    "role": "owner",
+    "phone_number": "081234567890",
+    "is_active": 1,
+    "last_login_at": "2026-01-12 08:12:36",
+    "created_at": "2026-01-12 08:12:36",
+    "updated_at": null
+  }
+}
+```
+
+#### ⚠️ 401 Unauthorized
+
+Terjadi jika Access Token tidak valid, kadaluarsa, atau header tidak disertakan.
+
+```json
+{
+  "success": false,
+  "message": "Invalid or missing access token",
+  "data": {
+    "error_code": "UNAUTHORIZED_ACCESS",
+    "errors": null
+  }
+}
+```
+
+#### 🚫 403 Forbidden
+
+Token valid, namun akun pengguna terkait dalam status non-aktif (is_active = 0).
+
+```json
+{
+  "success": false,
+  "message": "Access denied: account inactive or insufficient permission",
+  "data": {
+    "error_code": "ACCOUNT_INACTIVE",
+    "errors": null
+  }
+}
+```
+
+#### 🚫 429 Too Many Requests
+
+Terjadi jika terlalu banyak permintaan yang dikirim dalam waktu singkat, memicu mekanisme rate limiting.
+
+```json
+{
+  "success": false,
+  "message": "Too many requests, please try again later.",
+  "data": {
+    "error_code": "RATE_LIMIT_EXCEEDED",
+    "errors": null
+  }
+}
+```
+
+#### 🔥 500 Internal Server Error
+
+Terjadi kegagalan saat proses query ke database atau dekripsi token.
+
+```json
+{
+  "success": false,
+  "message": "An unexpected server error occurred during profile retrieval",
+  "data": {
+    "error_code": "PROFILE_FETCH_FAILED",
+    "errors": null
+  }
 }
 ```

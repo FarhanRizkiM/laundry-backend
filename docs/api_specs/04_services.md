@@ -6,14 +6,43 @@
 
 ## Endpoint : `POST /services`
 
+### Description :
+
+Endpoint ini digunakan oleh **Owner** untuk menambahkan layanan laundry baru ke dalam sistem. Setiap layanan wajib dikaitkan dengan `category_id` yang valid dan memiliki kode unik (`code`) sebagai SKU layanan.
+
+### Role Based Access Control (RBAC) :
+
+- `Permissions`: `owner`
+
 ### Headers :
 
-- `Authorization: Bearer <access_token>` (Required) - Hanya Owner yang diizinkan.
-- `Content-Type`: `application/json` (Required)
+- `Authorization`: `Bearer <access_token>` (Required)
+- `Accept`: `application/json`
+- `Content-Type`: `application/json`
 
-#### Description :
+### Parameters :
 
-Endpoint ini digunakan untuk menambahkan layanan laundry baru ke dalam database. Penting: Layanan harus dikaitkan dengan Kategori yang valid (melalui category_id). Selain itu, code (SKU) harus unik untuk memudahkan pencarian cepat saat transaksi.
+Bagian ini mendefinisikan aturan data yang dikirim melalui Request Body.
+
+| Key            | Tipe   | In   | Deskripsi                                           |
+| -------------- | ------ | ---- | --------------------------------------------------- |
+| category_id    | Int    | Body | ID Kategori yang sudah terdaftar di database.       |
+| code           | String | Body | Kode unik layanan (Contoh: `SVC-LKR-1`).            |
+| service_name   | String | Body | Nama layanan (Contoh: `Kiloan Regular`).            |
+| unit           | Enum   | Body | Satuan layanan (`kg` atau `pcs`).                   |
+| price          | Int    | Body | Harga layanan dalam nominal penuh (Contoh: `7000`). |
+| duration_hours | Int    | Body | Durasi pengerjaan dalam satuan jam (Contoh: `72`).  |
+
+```
+{
+  "category_id": 1,
+  "code": "SVC-LKR-1",
+  "service_name": "Layanan Cuci Kiloan Regular",
+  "unit": "kg",
+  "price": 7000,
+  "duration_hours": 72
+}
+```
 
 ### Request Body :
 
@@ -21,20 +50,20 @@ Objek JSON berisi detail layanan.
 
 ```json
 {
-  "category_id": 1, // Foreign Key (Wajib Valid)
-  "code": "SVC-LKR-1", // Unique, SKU/Kode Barang
-  "service_name": "Kiloan Regular", // Singular (bukan services_name)
-  "unit": "kg", // Enum: "kg", "pcs"
-  "price": 7000, // Decimal/Int. Hindari float 7.0 jika bisa, gunakan nominal penuh.
-  "duration_hours": 72 // Integer. (72 = 3 hari, 24 = 1 hari, 12 = setengah hari, 6 = 6 jam saja).
+  "category_id": 1,
+  "code": "SVC-LKR-1",
+  "service_name": "Kiloan Regular",
+  "unit": "kg",
+  "price": 7000,
+  "duration_hours": 72
 }
 ```
 
 ### Responses Body :
 
-#### ✅ 201 Created (Success)
+#### ✅ 201 Created
 
-Layanan berhasil dibuat.
+Layanan baru berhasil didaftarkan secara sukses.
 
 ```json
 {
@@ -47,89 +76,121 @@ Layanan berhasil dibuat.
     "service_name": "Kiloan Regular",
     "unit": "kg",
     "price": 7000,
-    "duration_hours": 72, // <--- Data durasi tersimpan
-    "is_active": true,
-    "created_at": "2025-12-26T18:49:21.410Z",
+    "duration_hours": 72,
+    "is_active": 1,
+    "created_at": "2026-01-13 18:00:00",
     "updated_at": null
   }
 }
 ```
 
-#### ⚠️ 400 Bad Request (Validation Error)
+#### ⚠️ 400 Bad Request
 
-Input tidak valid (misal: harga negatif, satuan salah, atau field wajib kosong).
+Input tidak valid (misal: harga negatif atau field wajib kosong).
 
 ```json
 {
   "success": false,
   "message": "Input validation failed",
   "data": {
-    "duration_hours": "Duration must be a positive integer (greater than 0)",
-    "price": "Price cannot be negative",
-    "unit": "Unit must be one of: kg, pcs"
+    "error_code": "VALIDATION_ERROR",
+    "errors": {
+      "price": "Price cannot be negative",
+      "unit": "Unit must be one of: kg, pcs"
+    }
   }
 }
 ```
 
-#### ⚠️ 401 Unauthorized (Invalid Token)
+#### ⚠️ 401 Unauthorized
 
-Token tidak valid, expired, atau tidak dikirim.
+Token tidak valid, kadaluarsa, atau tidak disertakan.
 
 ```json
 {
   "success": false,
   "message": "Invalid or missing access token",
-  "data": null
+  "data": {
+    "error_code": "UNAUTHORIZED_ACCESS",
+    "errors": null
+  }
 }
 ```
 
-#### 🚫 403 Forbidden (Insufficient Permissions)
+#### 🚫 403 Forbidden
 
-Token valid, tetapi role pengguna bukan Owner.
+Akses ditolak karena role Anda bukan **Owner**.
 
 ```json
 {
   "success": false,
-  "message": "You do not have permission to perform this action",
-  "data": null
+  "message": "Your role does not have permission",
+  "data": {
+    "error_code": "FORBIDDEN_ACCESS",
+    "errors": null
+  }
 }
 ```
 
-#### 🔍 404 Not Found (Foreign Key Error)
+#### 🚫 404 Not Found
 
-ID Kategori yang dikirim tidak ditemukan di database.
+404 terjadi ketika `category_id` yang dikirimkan tidak ditemukan di database.
 
 ```json
 {
   "success": false,
-  "message": "Category with ID 1 not found",
-  "data": null
+  "message": "Category not found",
+  "data": {
+    "error_code": "RESOURCE_NOT_FOUND",
+    "errors": null
+  }
 }
 ```
 
-#### 💥 409 Conflict (Duplicate Data)
+#### 🚫 409 Conflict
 
-Gagal simpan karena Kode Layanan atau Nama Layanan sudah ada sebelumnya.
+Kode layanan atau nama layanan sudah digunakan sebelumnya.
 
 ```json
 {
   "success": false,
   "message": "Data already exists",
   "data": {
-    "code": "Service code 'SVC-LKR-1' already exists"
+    "error_code": "DUPLICATE_DATA",
+    "errors": {
+      "code": "Service code 'SVC-LKR-1' already exists"
+    }
+  }
+}
+```
+
+#### 🚫 429 Too Many Requests
+
+Terlalu banyak permintaan dalam waktu singkat.
+
+```json
+{
+  "success": false,
+  "message": "Too many requests, please try again later",
+  "data": {
+    "error_code": "RATE_LIMIT_EXCEEDED",
+    "errors": null
   }
 }
 ```
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan di sisi server.
+Kegagalan sistem saat proses penyimpanan data layanan ke database.
 
 ```json
 {
   "success": false,
-  "message": "An unexpected error occurred",
-  "data": null
+  "message": "An unexpected server error occurred",
+  "data": {
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "errors": null
+  }
 }
 ```
 
@@ -137,30 +198,35 @@ Terjadi kesalahan di sisi server.
 
 ## Endpoint : `GET /services`
 
-### Headers :
-
-- `Authorization: Bearer <access_token>` (Required) - Semua Role (Owner, Staff, Kasir) boleh akses.
-
 #### Description :
 
-Endpoint ini digunakan untuk mengambil daftar layanan laundry. Response dilengkapi dengan Pagination dan Filtering yang lengkap. Endpoint ini sangat krusial karena akan digunakan di halaman "Kasir" (POS) untuk memilih layanan. Data response menyertakan detail Kategori (Nested JSON) dan Durasi pengerjaan. Endpoint ini digunakan untuk mengambil daftar layanan laundry. Poin Penting:
+Endpoint ini digunakan untuk mengambil daftar seluruh layanan laundry. Data dikirimkan secara Nested (Objek Kategori ada di dalam Objek Layanan) untuk memudahkan Kasir melihat jenis layanan tanpa perlu melakukan request tambahan ke endpoint kategori. Dilengkapi dengan **Pagination** dan **Filtering** yang komprehensif.
 
-1. Respon menggunakan format Nested JSON (Objek Kategori ada di dalam Objek Layanan) agar Frontend bisa langsung menampilkan nama kategori tanpa request tambahan.
-2. Menyertakan duration_hours agar sistem Kasir bisa menghitung estimasi waktu selesai secara otomatis.
-3. Mendukung Pagination dan Filtering.
+### Role Based Access Control (RBAC) :
+
+- `Permissions`: `owner, cashier`
+
+### Headers :
+
+- `Authorization`: `Bearer <access_token>` (Required)
+- `Accept`: `application/json`
 
 ### Parameters :
 
-Parameter ini dikirim melalui URL (contoh: /services?page=1&category_id=1).
+bagan ini mendefinisikan parameter query yang dapat digunakan untuk pagination dan filtering.
 
-| Key          | Tipe    | Default     | Deskripsi                                                              |
-| ------------ | ------- | ----------- | ---------------------------------------------------------------------- |
-| page         | Int     | 1           | Halaman ke berapa yang mau diambil.                                    |
-| limit        | Int     | 10, Max 100 | Jumlah data per halaman.                                               |
-| category_id  | Int     | -           | Filter layanan berdasarkan ID Kategori (misal: cuma tampilkan Kiloan). |
-| code         | String  | -           | Filter berdasarkan Kode Layanan (misal: hasil scan barcode).           |
-| service_name | String  |             | Cari layanan berdasarkan nama (Partial Search).                        |
-| is_active    | Boolean | true        | Filter status. Kasir biasanya default true.                            |
+| Key          | Tipe   | In    | Default     | Deskripsi                                           |
+| ------------ | ------ | ----- | ----------- | --------------------------------------------------- |
+| page         | Int    | Query | 1           | Halaman data yang ingin ditampilkan.                |
+| limit        | Int    | Query | 10, Max 100 | Jumlah data per halaman.                            |
+| category_id  | Int    | Query | -           | (Optional) Filter berdasarkan ID Kategori tertentu. |
+| code         | String | Query | -           | (Optional) Cari berdasarkan Kode SVC Layanan.       |
+| service_name | String | Query | -           | (Optional) Cari berdasarkan nama (Partial search).  |
+| is_active    | Int    | Query | 1           | (Optional) Filter status: 1 (Aktif) atau 0 (Arsip). |
+
+```
+GET /api/services?page=1&limit=10&is_active=1&category_id=1
+```
 
 ### Request Body :
 
@@ -170,95 +236,131 @@ None (Kosong).
 
 ### Responses Body :
 
-#### ✅ 200 OK (Success)
+#### ✅ 200 OK
 
-Daftar layanan berhasil diambil dengan struktur data bersarang.
+Data layanan berhasil diambil secara sukses beserta metadata dan info kategori.
 
 ```json
 {
   "success": true,
-  "message": "Services retrieved successfully",
+  "message": "Data retrieved successfully",
   "data": [
     {
       "id": 1,
       "code": "SVC-LKR-1",
-      "service_name": "Kiloan Regular",
+      "service_name": "Layanan Cuci Kiloan Regular",
       "unit": "kg",
       "price": 7000,
-      "duration_hours": 72, // 3 Hari
-      "is_active": true,
-      "created_at": "2025-12-26T18:49:21.410Z",
+      "duration_hours": 72,
+      "is_active": 1,
+      "created_at": "2025-12-28 07:24:03",
       "updated_at": null,
       "category": {
-        // <--- STRUKTUR BERSARANG (NESTED)
         "id": 1,
-        "category_name": "Laundry Kiloan",
-        "description": "Cuci pakaian sehari-hari"
+        "category_name": "Layanan Kiloan",
+        "description": "Cuci pakaian sehari-hari dengan sistem kiloan"
       }
     },
     {
       "id": 2,
-      "code": "SVC-LKK-1",
-      "service_name": "Kiloan Kilat",
-      "unit": "kg",
+      "code": "SVC-LJSR-1",
+      "service_name": "Layanan Cuci Jas Satuan Regular",
+      "unit": "pcs",
       "price": 10000,
-      "duration_hours": 6, // 6 Jam
-      "is_active": true,
-      "created_at": "2025-12-26T18:49:21.410Z",
+      "duration_hours": 72,
+      "is_active": 1,
+      "created_at": "2025-12-28 07:25:10",
       "updated_at": null,
       "category": {
-        // <--- Kategori ikut terbawa
-        "id": 1,
-        "category_name": "Laundry Kiloan",
-        "description": "Cuci pakaian sehari-hari"
+        "id": 2,
+        "category_name": "Layanan Satuan",
+        "description": "Cuci pakaian sehari-hari dengan sistem satuan"
       }
     }
   ],
   "meta": {
     "current_page": 1,
-    "total_pages": 2,
+    "per_page": 10,
     "total_items": 12,
-    "per_page": 10
+    "total_pages": 2
   }
 }
 ```
 
-#### ⚠️ 400 Bad Request (Invalid Parameters)
+#### ⚠️ 400 Bad Request
 
 Parameter query tidak valid.
 
 ```json
 {
   "success": false,
-  "message": "Invalid query parameters",
+  "message": "Input validation failed",
   "data": {
-    "page": "Must be a number",
-    "category_id": "Must be a number"
+    "error_code": "VALIDATION_ERROR",
+    "errors": {
+      "category_id": "Must be a number"
+    }
   }
 }
 ```
 
-#### ⚠️ 401 Unauthorized (Invalid Token)
+#### ⚠️ 401 Unauthorized
 
-Token tidak valid atau tidak dikirim.
+Token tidak valid, kadaluarsa, atau tidak disertakan.
 
 ```json
 {
   "success": false,
   "message": "Invalid or missing access token",
-  "data": null
+  "data": {
+    "error_code": "UNAUTHORIZED_ACCESS",
+    "errors": null
+  }
+}
+```
+
+#### 🚫 403 Forbidden
+
+Jika staff atau courier mencoba memanggil endpoint ini, sistem akan menolak.
+
+```json
+{
+  "success": false,
+  "message": "Your role does not have permission",
+  "data": {
+    "error_code": "FORBIDDEN_ACCESS",
+    "errors": null
+  }
+}
+```
+
+#### 🚫 429 Too Many Requests
+
+Terlalu banyak permintaan dalam waktu singkat (Rate Limit).
+
+```json
+{
+  "success": false,
+  "message": "Too many requests, please try again later",
+  "data": {
+    "error_code": "RATE_LIMIT_EXCEEDED",
+    "errors": null
+  }
 }
 ```
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kesalahan di sisi server.
+Kegagalan sistem saat pengambilan data dari database.
 
 ```json
 {
   "success": false,
-  "message": "An unexpected error occurred",
-  "data": null
+  "message": "An unexpected server error occurred",
+  "data": {
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "errors": null
+  }
 }
 ```
 
@@ -266,24 +368,30 @@ Terjadi kesalahan di sisi server.
 
 ## Endpoint : `GET /services/{id}`
 
-### Headers :
-
-- `Authorization: Bearer <access_token>` (Required) - Semua Role diperbolehkan mengakses (biasanya untuk pengecekan sebelum edit atau validasi kasir).
-
 #### Description :
 
-Endpoint ini digunakan untuk mengambil detail data dari satu layanan spesifik berdasarkan ID. Biasanya digunakan oleh Frontend saat:
+Endpoint ini digunakan untuk mengambil detail data dari satu layanan spesifik secara mendalam. Data dikirimkan secara nested dengan objek kategori di dalamnya. Digunakan oleh Admin/Owner untuk proses validasi data sebelum melakukan pembaruan (Edit).
 
-1. Menampilkan halaman "Edit Layanan" (Pre-fill form).
-2. Kasir melakukan scan barcode (mencari detail harga & durasi).
+### Role Based Access Control (RBAC) :
+
+- `Permissions`: `owner, cashier`
+
+### Headers :
+
+- `Authorization`: `Bearer <access_token>` (Required)
+- `Accept`: `application/json`
 
 ### Parameters :
 
 Parameter ini disisipkan langsung di URL (contoh: /services/1).
 
-| Key | Tipe | Default | Deskripsi                                     |
-| --- | ---- | ------- | --------------------------------------------- |
-| id  | Int  | -       | ID Unik layanan yang ingin dilihat detailnya. |
+| Key | Tipe | In   | Default | Deskripsi                                     |
+| --- | ---- | ---- | ------- | --------------------------------------------- |
+| id  | Int  | Path | -       | ID unik layanan yang ingin dilihat detailnya. |
+
+```
+GET /api/services/1
+```
 
 ### Request Body :
 
@@ -293,48 +401,51 @@ None (Kosong).
 
 ### Responses Body :
 
-#### ✅ 200 OK (Success)
+#### ✅ 200 OK
 
-Detail layanan ditemukan (Lengkap dengan Durasi & Info Kategori).
+Detail layanan berhasil diambil secara sukses.
 
 ```json
 {
   "success": true,
-  "message": "Service detail retrieved successfully",
+  "message": "Data retrieved successfully",
   "data": {
     "id": 1,
     "code": "SVC-LKR-1",
-    "service_name": "Kiloan Regular",
+    "service_name": "Layanan Cuci Kiloan Regular",
     "unit": "kg",
     "price": 7000,
     "duration_hours": 72,
-    "is_active": true,
-    "created_at": "2025-12-26T18:49:21.410Z",
+    "is_active": 1,
+    "created_at": "2025-12-28 07:24:03",
     "updated_at": null,
     "category": {
       "id": 1,
-      "category_name": "Laundry Kiloan",
-      "description": "Cuci pakaian sehari-hari"
+      "category_name": "Layanan Kiloan",
+      "description": "Cuci pakaian sehari-hari dengan sistem kiloan"
     }
   }
 }
 ```
 
-#### ⚠️ 400 Bad Request (Invalid ID Format)
+#### ⚠️ 400 Bad Request
 
-Format ID pada URL bukan angka.
+Format ID pada URL tidak valid (misal: /services/abc).
 
 ```json
 {
   "success": false,
-  "message": "Invalid ID format",
+  "message": "Input validation failed",
   "data": {
-    "id": "ID must be a number"
+    "error_code": "VALIDATION_ERROR",
+    "errors": {
+      "id": "ID must be a valid number"
+    }
   }
 }
 ```
 
-#### ⚠️ 401 Unauthorized (Invalid Token)
+#### ⚠️ 401 Unauthorized
 
 Token tidak valid, expired, atau tidak dikirim.
 
@@ -342,19 +453,55 @@ Token tidak valid, expired, atau tidak dikirim.
 {
   "success": false,
   "message": "Invalid or missing access token",
-  "data": null
+  "data": {
+    "error_code": "UNAUTHORIZED_ACCESS",
+    "errors": null
+  }
 }
 ```
 
-#### 🔍 404 Not Found (Data Missing)
+#### 🚫 403 Forbidden
 
-ID valid secara format, tetapi data layanan tidak ditemukan di database.
+Akses ditolak karena Role pengguna (Staff/Courier) tidak memiliki izin untuk melihat master data layanan.
+
+```json
+{
+  "success": false,
+  "message": "Your role does not have permission",
+  "data": {
+    "error_code": "FORBIDDEN_ACCESS",
+    "errors": null
+  }
+}
+```
+
+#### 🚫 404 Not Found
+
+ID layanan tidak ditemukan di database.
 
 ```json
 {
   "success": false,
   "message": "Service not found",
-  "data": null
+  "data": {
+    "error_code": "RESOURCE_NOT_FOUND",
+    "errors": null
+  }
+}
+```
+
+#### 🚫 429 Too Many Requests
+
+Terlalu banyak permintaan dalam waktu singkat (Rate Limit).
+
+```json
+{
+  "success": false,
+  "message": "Too many requests, please try again later",
+  "data": {
+    "error_code": "RATE_LIMIT_EXCEEDED",
+    "errors": null
+  }
 }
 ```
 
@@ -365,8 +512,11 @@ Terjadi kesalahan di sisi server.
 ```json
 {
   "success": false,
-  "message": "An unexpected error occurred",
-  "data": null
+  "message": "An unexpected server error occurred",
+  "data": {
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "errors": null
+  }
 }
 ```
 
@@ -374,22 +524,31 @@ Terjadi kesalahan di sisi server.
 
 ## Endpoint : `PUT /services/{id}`
 
-### Headers :
-
-- `Authorization: Bearer <access_token>` (Required) - Hanya Owner yang diizinkan.
-- `Content-Type`: `application/json` (Required)
-
 #### Description :
 
-Endpoint ini digunakan untuk memperbarui data layanan laundry. Owner dapat mengubah harga, nama, kategori, atau durasi pengerjaan (duration_hours). Validasi: Sistem akan mengecek kembali keunikan code (SKU) jika ada perubahan pada kode tersebut.
+Endpoint ini digunakan oleh Owner untuk memperbarui data layanan laundry. Sistem akan memvalidasi keunikan `code` (SKU) jika terjadi perubahan kode, serta memastikan `category_id` yang baru (jika dipindah kategori) benar-benar tersedia di database. Field yang tidak dikirim di request body akan tetap menggunakan nilai lama.
+
+### Role Based Access Control (RBAC) :
+
+- `Permissions`: `owner`
+
+### Headers :
+
+- `Authorization`: `Bearer <access_token>` (Required)
+- `Accept`: `application/json`
+- `Content-Type`: `application/json`
 
 ### Parameters :
 
-Parameter ini disisipkan langsung di URL (contoh: /services/1).
+bagian ini mendefinisikan parameter path yang diperlukan untuk mengidentifikasi layanan yang akan diperbarui.
 
-| Key | Tipe | Required | Deskripsi                          |
-| --- | ---- | -------- | ---------------------------------- |
-| id  | Int  | Yes      | ID Unik layanan yang ingin diedit. |
+| Key | Tipe | In   | Default | Deskripsi                                                 |
+| --- | ---- | ---- | ------- | --------------------------------------------------------- |
+| id  | Int  | Path | -       | ID unik (Primary Key) dari layanan yang ingin diperbarui. |
+
+```
+PUT /api/services/1
+```
 
 ### Request Body :
 
@@ -397,19 +556,19 @@ Objek JSON berisi data yang ingin diubah
 
 ```json
 {
-  "category_id": 1, // Foreign Key (Bisa dipindah kategori)
-  "code": "SVC-LKR-1", // Unique (Cek duplikasi jika berubah)
+  "category_id": 1,
+  "code": "SVC-LKR-1",
   "service_name": "Kiloan Regular",
   "unit": "kg",
-  "price": 7000, // Update harga
-  "duration_hours": 72, // Update durasi (misal ubah estimasi hari)
-  "is_active": true
+  "price": 7500,
+  "duration_hours": 72,
+  "is_active": 1
 }
 ```
 
 ### Responses Body :
 
-#### ✅ 200 OK (Success)
+#### ✅ 200 OK
 
 Data layanan berhasil diperbarui.
 
@@ -423,16 +582,16 @@ Data layanan berhasil diperbarui.
     "code": "SVC-LKR-1",
     "service_name": "Kiloan Regular",
     "unit": "kg",
-    "price": 7000,
-    "duration_hours": 72, // Data durasi terbaru
-    "is_active": true,
-    "created_at": "2025-12-26T18:49:21.410Z",
-    "updated_at": "2025-12-27T10:00:00.000Z" // Terisi tanggal baru
+    "price": 7500,
+    "duration_hours": 72,
+    "is_active": 1,
+    "created_at": "2025-12-28 07:24:03",
+    "updated_at": "2026-01-15 17:15:00"
   }
 }
 ```
 
-#### ⚠️ 400 Bad Request (Validation Error)
+#### ⚠️ 400 Bad Request
 
 Input tidak valid atau format salah.
 
@@ -441,14 +600,16 @@ Input tidak valid atau format salah.
   "success": false,
   "message": "Input validation failed",
   "data": {
-    "category_id": "Category ID does not exist",
-    "price": "Price cannot be negative",
-    "duration_hours": "Duration must be greater than 0"
+    "error_code": "VALIDATION_ERROR",
+    "errors": {
+      "price": "Price cannot be negative",
+      "duration_hours": "Duration must be greater than 0"
+    }
   }
 }
 ```
 
-#### ⚠️ 401 Unauthorized (Invalid Token)
+#### ⚠️ 401 Unauthorized
 
 Token tidak valid, expired, atau tidak dikirim.
 
@@ -456,38 +617,44 @@ Token tidak valid, expired, atau tidak dikirim.
 {
   "success": false,
   "message": "Invalid or missing access token",
-  "data": null
+  "data": {
+    "error_code": "UNAUTHORIZED_ACCESS",
+    "errors": null
+  }
 }
 ```
 
-#### 🚫 403 Forbidden (Insufficient Permissions)
+#### 🚫 403 Forbidden
 
 Token valid, tetapi role pengguna bukan Owner.
 
 ```json
 {
   "success": false,
-  "message": "You do not have permission to perform this action",
-  "data": null
+  "message": "Your role does not have permission",
+  "data": {
+    "error_code": "FORBIDDEN_ACCESS",
+    "errors": null
+  }
 }
 ```
 
-#### 404 Not Found (Service Missing)
+#### 🚫 404 Not Found
 
-Terjadi jika:
-
-1. ID Service yang diedit tidak ditemukan.
-2. ID Category baru (category_id) tidak valid.
+Terjadi jika ID Service tidak ditemukan, atau `category_id` baru tidak terdaftar.
 
 ```json
 {
   "success": false,
-  "message": "Service not found", // atau "Category not found"
-  "data": null
+  "message": "Service not found",
+  "data": {
+    "error_code": "RESOURCE_NOT_FOUND",
+    "errors": null
+  }
 }
 ```
 
-#### 💥 409 Conflict (Duplicate Code)
+#### 🚫 409 Conflict
 
 Gagal update karena kode layanan baru sudah dipakai layanan lain.
 
@@ -496,7 +663,25 @@ Gagal update karena kode layanan baru sudah dipakai layanan lain.
   "success": false,
   "message": "Data already exists",
   "data": {
-    "code": "Service code 'SVC-LKR-1' already exists"
+    "error_code": "DUPLICATE_DATA",
+    "errors": {
+      "code": "Service code 'SVC-LKR-1' already exists"
+    }
+  }
+}
+```
+
+#### 🚫 429 Too Many Requests
+
+Terlalu banyak permintaan dalam waktu singkat.
+
+```json
+{
+  "success": false,
+  "message": "Too many requests, please try again later.",
+  "data": {
+    "error_code": "RATE_LIMIT_EXCEEDED",
+    "errors": null
   }
 }
 ```
@@ -508,28 +693,40 @@ Terjadi kesalahan di sisi server.
 ```json
 {
   "success": false,
-  "message": "An unexpected error occurred",
-  "data": null
+  "message": "An unexpected server error occurred",
+  "data": {
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "errors": null
+  }
 }
 ```
 
 ## Endpoint : `DELETE /services/{id}`
 
+### Description :
+
+Endpoint ini digunakan oleh Owner untuk menonaktifkan layanan laundry secara logika (**Soft Delete**). Status layanan diubah menjadi `is_active = 0`. Hal ini memastikan integritas data pada transaksi lama tetap terjaga, namun layanan tersebut tidak akan muncul lagi sebagai pilihan pada pembuatan transaksi baru.
+
+### Role Based Access Control (RBAC) :
+
+- `Permissions`: `owner`
+
 ### Headers :
 
-- `Authorization: Bearer <access_token>` (Required) - Hanya Owner yang diizinkan.
-
-#### Description :
-
-Endpoint ini digunakan untuk menonaktifkan layanan laundry (Soft Delete). Penting: Data layanan TIDAK DIHAPUS permanen dari database. Statusnya hanya diubah menjadi tidak aktif (is_active = false). Hal ini dilakukan untuk menjaga integritas data laporan. Transaksi lama yang menggunakan layanan ini tidak akan error, tetapi layanan ini tidak akan muncul lagi di menu Kasir untuk transaksi baru.
+- `Authorization`: `Bearer <access_token>` (Required)
+- `Accept`: `application/json`
 
 ### Parameters :
 
-Parameter ini disisipkan langsung di URL (contoh: /services/5).
+Identifikasi layanan yang akan dinonaktifkan melalui Path Parameter.
 
-| Key | Tipe | Required | Deskripsi                                 |
-| --- | ---- | -------- | ----------------------------------------- |
-| id  | Int  | Yes      | ID Unik layanan yang ingin dinonaktifkan. |
+| Key | Tipe | In   | Default | Deskripsi                                               |
+| --- | ---- | ---- | ------- | ------------------------------------------------------- |
+| id  | Int  | Path | -       | ID unik (Primary Key) layanan yang ingin dinonaktifkan. |
+
+```
+DELETE /api/services/1
+```
 
 ### Request Body :
 
@@ -539,33 +736,38 @@ None (Kosong).
 
 ### Responses Body :
 
-#### ✅ 200 OK (Success)
+#### ✅ 200 OK
 
 Layanan berhasil dinonaktifkan.
 
 ```json
 {
   "success": true,
-  "message": "Service deactivated successfully",
-  "data": null
+  "message": "Service deleted successfully",
+  "data": {
+    "id": 1
+  }
 }
 ```
 
-#### ⚠️ 400 Bad Request (Invalid ID Format)
+#### ⚠️ 400 Bad Request
 
 Format ID pada URL bukan angka.
 
 ```json
 {
   "success": false,
-  "message": "Invalid ID format",
+  "message": "Input validation failed",
   "data": {
-    "id": "ID must be a number"
+    "error_code": "VALIDATION_ERROR",
+    "errors": {
+      "id": "ID must be a valid number"
+    }
   }
 }
 ```
 
-#### ⚠️ 401 Unauthorized (Invalid Token)
+#### ⚠️ 401 Unauthorized
 
 Token tidak valid, expired, atau tidak dikirim.
 
@@ -573,23 +775,29 @@ Token tidak valid, expired, atau tidak dikirim.
 {
   "success": false,
   "message": "Invalid or missing access token",
-  "data": null
+  "data": {
+    "error_code": "UNAUTHORIZED_ACCESS",
+    "errors": null
+  }
 }
 ```
 
-#### 🚫 403 Forbidden (Insufficient Permissions)
+#### 🚫 403 Forbidden
 
 Token valid, tapi yang melakukan request bukan Owner.
 
 ```json
 {
   "success": false,
-  "message": "You do not have permission to perform this action",
-  "data": null
+  "message": "Your role does not have permission",
+  "data": {
+    "error_code": "FORBIDDEN_ACCESS",
+    "errors": null
+  }
 }
 ```
 
-#### 🔍 404 Not Found (Service Missing)
+#### 🚫 404 Not Found
 
 Layanan dengan ID tersebut tidak ditemukan di database.
 
@@ -597,7 +805,25 @@ Layanan dengan ID tersebut tidak ditemukan di database.
 {
   "success": false,
   "message": "Service not found",
-  "data": null
+  "data": {
+    "error_code": "RESOURCE_NOT_FOUND",
+    "errors": null
+  }
+}
+```
+
+#### 🚫 429 Too Many Requests
+
+Terlalu banyak permintaan dalam waktu singkat.
+
+```json
+{
+  "success": false,
+  "message": "Too many requests, please try again later",
+  "data": {
+    "error_code": "RATE_LIMIT_EXCEEDED",
+    "errors": null
+  }
 }
 ```
 
@@ -608,7 +834,10 @@ Terjadi kesalahan tak terduga di server.
 ```json
 {
   "success": false,
-  "message": "An unexpected error occurred",
-  "data": null
+  "message": "An unexpected server error occurred",
+  "data": {
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "errors": null
+  }
 }
 ```
