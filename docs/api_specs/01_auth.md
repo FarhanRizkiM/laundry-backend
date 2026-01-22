@@ -8,7 +8,7 @@
 
 ### Description :
 
-Endpoint ini digunakan untuk memverifikasi identitas pengguna (Otentikasi). Backend akan melakukan query ke tabel `users` untuk mencocokkan `username` dan melakukan verifikasi hash password. Jika valid, server akan menghasilkan Access Token (JWT).
+Endpoint ini digunakan untuk memverifikasi identitas pengguna (Otentikasi). Sistem akan melakukan pencocokan `username` pada tabel `users` dan memverifikasi hash password menggunakan algoritma aman. Jika valid, server akan menghasilkan **Access Token (JWT)** yang berisi _claim_ identitas dan peran pengguna untuk mengakses _endpoint_ lainnya.
 
 ### Role Based Access Control (RBAC) :
 
@@ -23,10 +23,10 @@ Endpoint ini digunakan untuk memverifikasi identitas pengguna (Otentikasi). Back
 
 Bagian ini mendefinisikan field yang wajib dikirimkan dalam Request Body untuk proses otentikasi. Password dikirim dalam bentuk teks biasa (plain text) melalui koneksi aman (HTTPS).
 
-| Key      | Tipe   | Location | Deskripsi                              |
-| -------- | ------ | -------- | -------------------------------------- |
-| username | String | Body     | Username unik pengguna.                |
-| password | String | Body     | Kata sandi pengguna (Min. 8 karakter). |
+| Key      | Type   | Location | Description                                  |
+| -------- | ------ | -------- | -------------------------------------------- |
+| username | String | Body     | Username unik pengguna yang sudah terdaftar. |
+| password | String | Body     | Kata sandi pengguna (Min. 8 karakter).       |
 
 ```
 {
@@ -50,7 +50,7 @@ Objek JSON yang berisi kredensial pengguna. Password dikirim dalam bentuk teks b
 
 #### ✅ 200 OK
 
-Otentikasi berhasil. Mengembalikan sepasang token dan profil lengkap pengguna.
+Otentikasi berhasil. Mengembalikan token akses dan profil singkat pengguna.
 
 ```json
 {
@@ -60,15 +60,15 @@ Otentikasi berhasil. Mengembalikan sepasang token dan profil lengkap pengguna.
     "token": {
       "token_type": "Bearer",
       "access_token": "eyJhbGciOiJIUzI1NiIsInR...",
-      "expires_in": 86400 // 24 jam dalam detik (24 * 3600)
+      "expires_in": 86400
     },
     "user": {
       "id": 1,
-      "full_name": "Farhan Rizki Maulana",
       "username": "farhanrizkimln",
-      "email": "farhanrizkimln@gmail.com",
-      "phone_number": "081234567890",
       "role": "owner"
+      // "full_name": "Farhan Rizki Maulana",
+      // "email": "farhanrizkimln@gmail.com",
+      // "phone_number": "081234567890",
     }
   }
 }
@@ -94,12 +94,12 @@ Terjadi jika format input tidak valid atau ada field yang kosong.
 
 #### ⚠️ 401 Unauthorized
 
-Username tidak ditemukan atau password salah.
+Kombinasi username dan password tidak cocok. Sistem memberikan pesan umum demi alasan keamanan (_Security Best Practice_).
 
 ```json
 {
   "success": false,
-  "message": "Authentication failed: invalid credentials or expired token",
+  "message": "Invalid username or password",
   "data": {
     "error_code": "INVALID_CREDENTIALS",
     "errors": null
@@ -109,12 +109,12 @@ Username tidak ditemukan atau password salah.
 
 #### 🚫 403 Forbidden
 
-Kredensial benar, tetapi akun diblokir atau dinonaktifkan (is_active = 0).
+Kredensial benar, tetapi akun pengguna dalam status dinonaktifkan (`is_active = 0`).
 
 ```json
 {
   "success": false,
-  "message": "Access denied: account inactive or insufficient permission",
+  "message": "Your account is inactive. Please contact the administrator.",
   "data": {
     "error_code": "ACCOUNT_INACTIVE",
     "errors": null
@@ -146,7 +146,7 @@ Kegagalan teknis pada server, seperti database timeout atau gagal melakukan sign
   "success": false,
   "message": "An unexpected server error occurred during authentication",
   "data": {
-    "error_code": "TOKEN_GENERATION_FAILED",
+    "error_code": "INTERNAL_SERVER_ERROR",
     "errors": null
   }
 }
@@ -158,7 +158,7 @@ Kegagalan teknis pada server, seperti database timeout atau gagal melakukan sign
 
 ### Description :
 
-Endpoint ini digunakan untuk mengakhiri sesi pengguna secara formal. Karena sistem menggunakan `Stateless JWT`, backend memvalidasi keabsahan token. Proses penghapusan sesi yang sebenarnya dilakukan oleh Frontend dengan menghapus Access Token, namun endpoint ini memastikan server mengakui akhir sesi tersebut.
+Endpoint ini berfungsi sebagai sinyal formal pengakhiran akses pengguna. Mengingat sistem menggunakan **Stateless JWT**, server akan memvalidasi keabsahan token yang dikirimkan. Setelah mendapatkan respons sukses, klien (_Frontend/Mobile_) wajib menghapus Access Token dari penyimpanan lokal (_Local Storage/Secure Storage_) untuk mengamankan akun.
 
 ### Role Based Access Control (RBAC) :
 
@@ -172,14 +172,14 @@ Endpoint ini digunakan untuk mengakhiri sesi pengguna secara formal. Karena sist
 
 ### Parameters :
 
-Bagian ini tidak memerlukan data tambahan karena identifikasi sesi sepenuhnya diambil dari Authorization Header.
+Bagian ini tidak memerlukan parameter pada _Path_ maupun _Query_ karena identitas akses sepenuhnya diambil dari _Authorization Header_.
 
-| Key  | Tipe | In  | Deskripsi                                    |
-| ---- | ---- | --- | -------------------------------------------- |
-| None | -    | -   | Tidak ada parameter yang diperlukan di body. |
+| Key  | Type | Location | Default | Description                                  |
+| ---- | ---- | -------- | ------- | -------------------------------------------- |
+| None | -    | -        | -       | Tidak ada parameter yang diperlukan di body. |
 
 ```
-None (Identifikasi sesi dilakukan melalui Authorization Header).
+POST /api/auth/logout
 ```
 
 ### Request Body :
@@ -192,21 +192,21 @@ None (Kosong).
 
 #### ✅ 200 OK
 
-Proses logout berhasil dilakukan secara sukses. Token yang dikirimkan telah divalidasi dan klien diinstruksikan untuk membersihkan sesi.
+Sinyal logout berhasil diterima. Server mengonfirmasi bahwa token valid dan memberikan instruksi bagi klien untuk membersihkan akses di sisi lokal.
 
 ```json
 {
   "success": true,
   "message": "Logout successfully",
   "data": {
-    "status": "session_terminated"
+    "status": "access_terminated"
   }
 }
 ```
 
 #### ⚠️ 401 Unauthorized
 
-Terjadi jika Access Token tidak valid, sudah kadaluarsa, atau tidak disertakan.
+Respons ketika token akses tidak valid, sudah kedaluwarsa, atau tidak disertakan dalam header.
 
 ```json
 {
@@ -219,16 +219,31 @@ Terjadi jika Access Token tidak valid, sudah kadaluarsa, atau tidak disertakan.
 }
 ```
 
+#### 🚫 429 Too Many Requests
+
+Terlalu banyak permintaan logout dalam waktu singkat dari satu identitas atau IP untuk mencegah penyalahgunaan resource.
+
+```json
+{
+  "success": false,
+  "message": "Too many requests, please try again later.",
+  "data": {
+    "error_code": "RATE_LIMIT_EXCEEDED",
+    "errors": null
+  }
+}
+```
+
 #### 🔥 500 Internal Server Error
 
-Terjadi kegagalan sistem internal saat memproses permintaan logout.
+Terjadi kesalahan teknis yang tidak terduga pada server saat memproses validasi logout.
 
 ```json
 {
   "success": false,
   "message": "An unexpected server error occurred during logout",
   "data": {
-    "error_code": "LOGOUT_PROCESS_FAILED",
+    "error_code": "INTERNAL_SERVER_ERROR",
     "errors": null
   }
 }
@@ -240,7 +255,7 @@ Terjadi kegagalan sistem internal saat memproses permintaan logout.
 
 ### Description :
 
-Endpoint ini digunakan untuk mengambil data profil lengkap pengguna yang sedang aktif (pemilik token). Backend akan mendekripsi token dari header untuk mendapatkan `user_id`, lalu melakukan query ke tabel `users` untuk mengambil data terbaru. Sangat berguna untuk sinkronisasi state aplikasi saat pertama kali dimuat.
+Endpoint ini digunakan untuk mengambil data profil lengkap pengguna yang sedang aktif (**pemilik token**). Backend akan mendekripsi Access Token dari header untuk mendapatkan identitas pengguna (`user_id`), lalu melakukan query ke database untuk mengambil informasi terbaru. Endpoint ini krusial untuk sinkronisasi state profil dan hak akses saat aplikasi pertama kali dimuat (_Initial Load_).
 
 ### Role Based Access Control (RBAC) :
 
@@ -254,14 +269,14 @@ Endpoint ini digunakan untuk mengambil data profil lengkap pengguna yang sedang 
 
 ### Parameters :
 
-Identifikasi dilakukan sepenuhnya melalui Authorization Header. Tidak ada parameter tambahan.
+Identifikasi identitas dilakukan sepenuhnya melalui dekripsi pada Authorization Header. Tidak ada parameter tambahan yang diperlukan.
 
-| Key  | Tipe | In  | Deskripsi                                                 |
-| ---- | ---- | --- | --------------------------------------------------------- |
-| None | -    | -   | Identifikasi sesi dilakukan melalui Authorization Header. |
+| Key  | Type | Location | Default | Description                                                   |
+| ---- | ---- | -------- | ------- | ------------------------------------------------------------- |
+| None | -    | -        |         | Identifikasi pengguna dilakukan melalui Authorization Header. |
 
 ```
-None (Identifikasi sesi dilakukan melalui Authorization Header).
+GET /api/auth/me
 ```
 
 ### Request Body :
@@ -297,7 +312,7 @@ Profil pengguna berhasil diambil secara sukses.
 
 #### ⚠️ 401 Unauthorized
 
-Terjadi jika Access Token tidak valid, kadaluarsa, atau header tidak disertakan.
+Respons ketika token akses tidak valid, sudah kedaluwarsa, atau tidak disertakan dalam header permintaan.
 
 ```json
 {
@@ -312,12 +327,12 @@ Terjadi jika Access Token tidak valid, kadaluarsa, atau header tidak disertakan.
 
 #### 🚫 403 Forbidden
 
-Token valid, namun akun pengguna terkait dalam status non-aktif (is_active = 0).
+Token valid secara teknis, namun akun pengguna dalam status dinonaktifkan (`is_active = 0`).
 
 ```json
 {
   "success": false,
-  "message": "Access denied: account inactive or insufficient permission",
+  "message": "Access denied: your account is currently inactive",
   "data": {
     "error_code": "ACCOUNT_INACTIVE",
     "errors": null
@@ -327,7 +342,7 @@ Token valid, namun akun pengguna terkait dalam status non-aktif (is_active = 0).
 
 #### 🚫 429 Too Many Requests
 
-Terjadi jika terlalu banyak permintaan yang dikirim dalam waktu singkat, memicu mekanisme rate limiting.
+Terlalu banyak permintaan pengambilan profil dalam waktu singkat untuk mencegah eksploitasi _resource server_.
 
 ```json
 {
@@ -342,14 +357,14 @@ Terjadi jika terlalu banyak permintaan yang dikirim dalam waktu singkat, memicu 
 
 #### 🔥 500 Internal Server Error
 
-Terjadi kegagalan saat proses query ke database atau dekripsi token.
+Terjadi kesalahan teknis yang tidak terduga pada server (seperti kegagalan query database).
 
 ```json
 {
   "success": false,
   "message": "An unexpected server error occurred during profile retrieval",
   "data": {
-    "error_code": "PROFILE_FETCH_FAILED",
+    "error_code": "INTERNAL_SERVER_ERROR",
     "errors": null
   }
 }

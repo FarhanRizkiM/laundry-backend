@@ -8,7 +8,7 @@
 
 ### Description :
 
-Endpoint ini digunakan oleh **Owner** untuk mendaftarkan karyawan baru ke dalam sistem. Backend akan melakukan validasi ganda (keaslian email & keunikan username), melakukan hashing password (Bcrypt), dan menyimpannya ke tabel `users`.
+Endpoint ini digunakan secara eksklusif oleh **Owner** untuk mendaftarkan akun karyawan baru (Kasir, Staff, atau Kurir) ke dalam sistem. Backend melakukan validasi ganda untuk memastikan `email` dan `username` belum pernah digunakan sebelumnya (_unique constraint_). Kata sandi akan diproses menggunakan algoritma _hashing_ aman sebelum disimpan ke database untuk menjamin privasi pengguna.
 
 ### Role Based Access Control (RBAC) :
 
@@ -22,16 +22,16 @@ Endpoint ini digunakan oleh **Owner** untuk mendaftarkan karyawan baru ke dalam 
 
 ### Parameters :
 
-Bagian ini mendefinisikan aturan main data yang harus dikirimkan oleh klien.
+Seluruh field di bawah ini wajib disertakan dalam Request Body.
 
-| Key          | Tipe   | In   | Deskripsi                                        |
-| ------------ | ------ | ---- | ------------------------------------------------ |
-| full_name    | String | Body | Nama lengkap user (Max. 150 karakter).           |
-| username     | String | Body | Username unik, tanpa spasi (Max. 100 karakter).  |
-| email        | String | Body | Email unik dan format valid (Max. 150 karakter). |
-| password     | String | Body | Kata sandi minimal 8 karakter.                   |
-| phone_number | String | Body | Nomor telepon aktif (Max. 30 karakter).          |
-| role         | Enum   | Body | Pilihan: `owner`, `cashier`, `staff`, `courier`. |
+| Key          | Type   | Location | Default | Description                                      |
+| ------------ | ------ | -------- | ------- | ------------------------------------------------ |
+| full_name    | String | Body     | -       | Nama lengkap user (Max. 150 karakter).           |
+| username     | String | Body     | -       | Username unik, tanpa spasi (Max. 100 karakter).  |
+| email        | String | Body     | -       | Email unik dan format valid (Max. 150 karakter). |
+| password     | String | Body     | -       | Kata sandi minimal 8 karakter.                   |
+| phone_number | String | Body     | -       | Nomor telepon aktif (Max. 30 karakter).          |
+| role         | Enum   | Body     | -       | Pilihan: `owner`, `cashier`, `staff`, `courier`. |
 
 ```
 {
@@ -63,7 +63,7 @@ Objek JSON yang dikirimkan untuk proses registrasi karyawan baru.
 
 #### ✅ 201 Created
 
-Karyawan baru berhasil didaftarkan secara sukses.
+Karyawan baru berhasil didaftarkan. Akun secara otomatis diatur dalam status aktif (`is_active: 1`).
 
 ```json
 {
@@ -77,7 +77,7 @@ Karyawan baru berhasil didaftarkan secara sukses.
     "role": "cashier",
     "phone_number": "082345678901",
     "is_active": 1,
-    "created_at": "2025-12-28 07:24:03",
+    "created_at": "2026-01-20 07:24:03",
     "updated_at": null
   }
 }
@@ -85,7 +85,7 @@ Karyawan baru berhasil didaftarkan secara sukses.
 
 #### ⚠️ 400 Bad Request
 
-Input tidak lolos validasi (format salah atau field kosong).
+Terjadi kegagalan validasi skema data (field kosong atau format tidak sesuai).
 
 ```json
 {
@@ -103,7 +103,7 @@ Input tidak lolos validasi (format salah atau field kosong).
 
 #### ⚠️ 401 Unauthorized
 
-Token tidak valid, expired, atau tidak disertakan.
+Respons ketika token akses tidak valid, kedaluwarsa, atau tidak disertakan dalam header.
 
 ```json
 {
@@ -118,7 +118,7 @@ Token tidak valid, expired, atau tidak disertakan.
 
 #### 🚫 403 Forbidden
 
-User memiliki token, tapi rolenya bukan `owner`.
+Pengguna memiliki token valid, namun tidak memiliki hak akses `owner` untuk melakukan pendaftaran.
 
 ```json
 {
@@ -133,7 +133,7 @@ User memiliki token, tapi rolenya bukan `owner`.
 
 #### 🚫 409 Conflict
 
-Username atau Email sudah terdaftar sebelumnya di database.
+Username atau Email yang dikirimkan sudah terdaftar di database.
 
 ```json
 {
@@ -199,16 +199,18 @@ Endpoint ini digunakan oleh **Owner** untuk mendapatkan daftar seluruh akun kary
 
 Daftar filter pencarian dan pengaturan data melalui Query String.
 
-| Key       | Tipe   | In    | Default | Deskripsi                                                           |
-| --------- | ------ | ----- | ------- | ------------------------------------------------------------------- |
-| page      | Int    | Query | 1       | Menentukan halaman data yang ingin diambil.                         |
-| limit     | Int    | Query | 10      | Jumlah data yang ditampilkan per halaman.                           |
-| name      | String | Query | -       | (Optional) Filter pencarian berdasarkan nama lengkap atau username. |
-| role      | Enum   | Query | -       | (Optional) Filter: owner, cashier, staff, courier.                  |
-| is_active | Int    | Query | -       | (Optional) Filter status. Isi 1 untuk aktif, 0 untuk non-aktif.     |
+| Key      | Type   | Location | Default    | Description                                       |
+| -------- | ------ | -------- | ---------- | ------------------------------------------------- |
+| page     | Int    | Query    | 1          | Nomor halaman.                                    |
+| per_page | Int    | Query    | 10         | Jumlah data per halaman.                          |
+| search   | String | Query    | -          | Cari berdasarkan nama atau username.              |
+| role     | Enum   | Query    | -          | Filter peran: owner, cashier, staff, courier.     |
+| status   | Int    | Query    | -          | Filter status akun: 1 (Aktif), 0 (Non-aktif).     |
+| sort_by  | String | Query    | created_at | Kolom pengurutan (contoh: full_name, created_at). |
+| order    | String | Query    | desc       | Arah: asc (A-Z/Lama) atau desc (Z-A/Baru).        |
 
 ```
-GET /api/users?page=1&limit=10&role=cashier&is_active=1
+GET /api/users?page=1&per_page=10&status=1&sort_by=full_name&order=asc
 ```
 
 ### Request Body :
@@ -226,31 +228,21 @@ Daftar pengguna berhasil diambil secara sukses beserta informasi metadata halama
 ```json
 {
   "success": true,
-  "message": "Data retrieved successfully",
+  "message": "Users retrieved successfully",
   "data": [
     {
       "id": 1,
       "full_name": "Farhan Rizki Maulana",
       "username": "farhanrizkimln",
-      "email": "farhanrizki@gmail.com",
       "role": "owner",
-      "phone_number": "081234567890",
-      "is_active": 1,
-      "last_login_at": "2026-01-12 14:00:00",
-      "created_at": "2025-12-01 08:00:00",
-      "updated_at": null
+      "is_active": 1
     },
     {
       "id": 2,
       "full_name": "Siti Aminah",
       "username": "sitiaminah",
-      "email": "sitiaminah@gmail.com",
       "role": "cashier",
-      "phone_number": "082345678901",
-      "is_active": 1,
-      "last_login_at": "2026-01-11 10:00:00",
-      "created_at": "2025-12-28 07:24:03",
-      "updated_at": null
+      "is_active": 1
     }
   ],
   "meta": {
@@ -346,7 +338,7 @@ Kegagalan sistem saat pengambilan data.
 
 ### Description :
 
-Endpoint ini digunakan oleh **Owner** untuk mengambil data profil lengkap satu orang karyawan secara spesifik berdasarkan ID unik mereka. Backend akan memvalidasi apakah ID tersebut merupakan angka yang valid, memeriksa izin akses (Permissions), lalu melakukan query langsung ke baris data terkait di tabel `users`.
+Endpoint ini digunakan oleh **Owner** untuk mendapatkan informasi profil lengkap dan mendalam dari seorang karyawan. Berbeda dengan endpoint list yang hanya memberikan informasi ringkas, endpoint detail ini menyajikan seluruh atribut pengguna (_kecuali hash password_) termasuk kontak, status akun, dan rekam jejak waktu (_timestamps_) untuk keperluan administrasi dan audit.
 
 ### Role Based Access Control (RBAC) :
 
@@ -359,11 +351,11 @@ Endpoint ini digunakan oleh **Owner** untuk mengambil data profil lengkap satu o
 
 ### Parameters :
 
-Menargetkan ID unik melalui jalur URL (Path Parameter).
+Identifikasi pengguna dilakukan melalui jalur URL menggunakan ID unik yang terdaftar di database.
 
-| Key | Tipe | In   | Default | Deskripsi                                                    |
-| --- | ---- | ---- | ------- | ------------------------------------------------------------ |
-| id  | Int  | Path | -       | ID Unik (Primary Key) pengguna yang ingin dilihat detailnya. |
+| Key | Type | Location | Default | Description                                                  |
+| --- | ---- | -------- | ------- | ------------------------------------------------------------ |
+| id  | Int  | Path     | -       | ID Unik (Primary Key) karyawan yang ingin dilihat detailnya. |
 
 ```
 GET /api/users/1
@@ -379,12 +371,12 @@ None (Kosong).
 
 #### ✅ 200 OK (Success)
 
-Data pengguna ditemukan. Perhatikan bahwa `data` berbentuk Object `{}`, bukan Array `[]`.
+Data pengguna ditemukan. Informasi disajikan dalam bentuk objek tunggal yang berisi profil lengkap.
 
 ```json
 {
   "success": true,
-  "message": "Data retrieved successfully",
+  "message": "User detail retrieved successfully",
   "data": {
     "id": 1,
     "full_name": "Farhan Rizki Maulana",
@@ -402,7 +394,7 @@ Data pengguna ditemukan. Perhatikan bahwa `data` berbentuk Object `{}`, bukan Ar
 
 #### ⚠️ 400 Bad Request
 
-Format ID salah (misal: mengirimkan string alih-alih angka).
+Terjadi jika format ID yang dikirimkan tidak valid (bukan angka).
 
 ```json
 {
@@ -411,7 +403,7 @@ Format ID salah (misal: mengirimkan string alih-alih angka).
   "data": {
     "error_code": "VALIDATION_ERROR",
     "errors": {
-      "id": "ID must be a valid number"
+      "id": "id must be a valid number"
     }
   }
 }
@@ -419,7 +411,7 @@ Format ID salah (misal: mengirimkan string alih-alih angka).
 
 #### ⚠️ 401 Unauthorized
 
-Token tidak valid, expired, atau tidak disertakan.
+Respons ketika token akses tidak valid, kedaluwarsa, atau tidak disertakan.
 
 ```json
 {
@@ -434,7 +426,7 @@ Token tidak valid, expired, atau tidak disertakan.
 
 #### 🚫 403 Forbidden
 
-Token Anda valid, tetapi Anda tidak memiliki hak akses (Role bukan owner) untuk melihat detail data karyawan lain.
+Akses ditolak karena peran pengguna saat ini tidak memiliki izin untuk melihat detail karyawan lain.
 
 ```json
 {
@@ -449,7 +441,7 @@ Token Anda valid, tetapi Anda tidak memiliki hak akses (Role bukan owner) untuk 
 
 #### 🚫 404 Not Found
 
-ID berupa angka yang valid, namun datanya tidak ada di database.
+Permintaan ID valid secara format, namun data karyawan tersebut tidak ditemukan di database.
 
 ```json
 {
@@ -464,7 +456,7 @@ ID berupa angka yang valid, namun datanya tidak ada di database.
 
 #### 🚫 429 Too Many Requests
 
-Terjadi jika terlalu banyak permintaan yang dikirim dalam waktu singkat, memicu mekanisme rate limiting.
+Terlalu banyak permintaan akses detail dalam waktu singkat (Rate Limiting).
 
 ```json
 {
@@ -479,7 +471,7 @@ Terjadi jika terlalu banyak permintaan yang dikirim dalam waktu singkat, memicu 
 
 #### 🔥 500 Internal Server Error
 
-Kesalahan pada sistem atau query database.
+Kegagalan teknis pada server atau database saat melakukan pencarian data.
 
 ```json
 {
@@ -498,10 +490,7 @@ Kesalahan pada sistem atau query database.
 
 ### Description :
 
-Endpoint ini digunakan untuk memperbarui profil pengguna. Terdapat logika **Authorization** ketat:
-
-- **Owner**: Akses penuh ke seluruh baris data di tabel `users`.
-- **Non-Owner**: Hanya diizinkan mengubah data profil mereka sendiri. Field `role` dan `is_active` akan diabaikan oleh sistem demi keamanan jika dikirim oleh non-owner.
+Endpoint ini digunakan untuk memperbarui data profil karyawan. Sistem menerapkan **Multi-layered Authorization** di mana Owner memiliki kendali mutlak, sedangkan karyawan lain hanya diperbolehkan mengelola data pribadi mereka sendiri. Perubahan pada hak akses (_role_) dan status akun dikunci secara ketat agar tidak bisa dimanipulasi oleh entitas non-owner.
 
 ### Role Based Access Control (RBAC) :
 
@@ -517,9 +506,9 @@ Endpoint ini digunakan untuk memperbarui profil pengguna. Terdapat logika **Auth
 
 Bagian ini menggunakan Path Parameter untuk menentukan target pengguna yang akan diperbarui.
 
-| Key | Tipe | In   | Default | Deskripsi                       |
-| --- | ---- | ---- | ------- | ------------------------------- |
-| id  | Int  | Path | -       | ID Unik user yang ingin diedit. |
+| Key | Type | Location | Default | Description                                    |
+| --- | ---- | -------- | ------- | ---------------------------------------------- |
+| id  | Int  | Path     | -       | ID Unik karyawan yang akan diperbarui datanya. |
 
 ```
 PUT /api/users/1
@@ -527,15 +516,19 @@ PUT /api/users/1
 
 ### Logic Guard :
 
-| Skenario                   | Izin Akses              | Field yang Boleh Diubah            |
-| -------------------------- | ----------------------- | ---------------------------------- |
-| Owner akses ID siapa saja  | DIIZINKAN               | Semua field tanpa pengecualian     |
-| User akses ID diri sendiri | DIIZINKAN               | Semua kecuali `role` & `is_active` |
-| User akses ID orang lain   | DITOLAK (403 Forbidden) | -                                  |
+Sebagai **Architect**, Anda harus memastikan logika ini tertanam di dalam _middleware_ atau _service layer_:
+
+| Skenario                   | Izin Akses    | Field yang Boleh Diubah            |
+| -------------------------- | ------------- | ---------------------------------- |
+| Owner akses ID siapa saja  | **DIIZINKAN** | Semua field tanpa pengecualian     |
+| User akses ID diri sendiri | **DIIZINKAN** | Semua kecuali `role` & `is_active` |
+| User akses ID orang lain   | **DITOLAK**   | Tidak ada (Respons 403).           |
+
+**Catatan Teknis**: Jika non-owner mengirimkan field `role` atau `is_active`, sistem harus mengabaikan field tersebut dan tetap mempertahankan nilai lama di database tanpa memberikan error (Silent Ignore).
 
 ### Request Body :
 
-Kirimkan data yang ingin diubah. Field yang tidak dikirimkan akan tetap menggunakan nilai lama di database.
+Gunakan format JSON. Field yang tidak dikirimkan akan tetap menggunakan nilai yang sudah ada di database.
 
 ```json
 {
@@ -591,24 +584,9 @@ Gagal validasi input atau format ID salah.
 }
 ```
 
-#### ⚠️ 401 Unauthorized
-
-Token tidak valid atau tidak disertakan.
-
-```json
-{
-  "success": false,
-  "message": "Invalid or missing access token",
-  "data": {
-    "error_code": "UNAUTHORIZED_ACCESS",
-    "errors": null
-  }
-}
-```
-
 #### 🚫 403 Forbidden
 
-Role yang lain mencoba mengakses ID milik orang lain.
+Terjadi ketika karyawan mencoba mengedit profil karyawan lain.
 
 ```json
 {
@@ -702,15 +680,20 @@ Endpoint ini digunakan untuk menghapus pengguna secara logika (**Soft Delete**).
 
 ### Parameters :
 
-Identifikasi pengguna yang akan dihapus dilakukan melalui Path Parameter.
+Identifikasi target dilakukan melalui jalur URL menggunakan ID unik pengguna.
 
-| Key | Tipe    | In   | Default | Deskripsi                              |
-| --- | ------- | ---- | ------- | -------------------------------------- |
-| id  | Integer | Path | -       | ID Unik user yang ingin dinonaktifkan. |
+| Key | Type    | Location | Default | Description                                             |
+| --- | ------- | -------- | ------- | ------------------------------------------------------- |
+| id  | Integer | Path     | -       | ID Unik (Primary Key) karyawan yang akan dinonaktifkan. |
 
 ```
 DELETE /api/users/1
 ```
+
+### 🛡️ Logic Guard (Aturan Keamanan) :
+
+1. **Authorization**: Hanya pengguna dengan peran `owner` yang diizinkan memanggil endpoint ini.
+2. **Anti Self-Deletion**: Sistem wajib menolak permintaan jika `id` pada _path_ sama dengan `user_id` yang sedang login (Owner tidak boleh menonaktifkan akunnya sendiri untuk mencegah sistem tanpa admin).
 
 ### Request Body :
 

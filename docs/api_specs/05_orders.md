@@ -6,7 +6,7 @@
 
 ## Endpoint : `POST /orders`
 
-#### Description :
+### Description :
 
 Endpoint ini digunakan untuk mencatat pesanan laundry baru ke dalam sistem. Akses dibatasi hanya untuk **Cashier** dan **Owner**. Backend akan menjalankan transaksi atomik (semua sukses atau semua gagal) untuk mengisi tabel-tabel utama secara otomatis:
 
@@ -19,7 +19,7 @@ Endpoint ini digunakan untuk mencatat pesanan laundry baru ke dalam sistem. Akse
 
 ### Role Based Access Control (RBAC) :
 
-- `Permissions`: `cashier, owner`
+- `Permissions`: `owner, cashier`
 
 ### Headers :
 
@@ -31,19 +31,17 @@ Endpoint ini digunakan untuk mencatat pesanan laundry baru ke dalam sistem. Akse
 
 Bagian ini merinci data yang harus dikirimkan dalam _Body Request_. Kolom yang ditandai opsional akan diisi dengan nilai _default_ oleh _Backend_.
 
-| Key                      | Tipe   | In   | Deskripsi                                                    |
-| ------------------------ | ------ | ---- | ------------------------------------------------------------ |
-| customer_id              | Int    | Body | ID unik pelanggan (opsional jika pelanggan sudah terdaftar). |
-| customer_name            | String | Body | Nama lengkap pelanggan (wajib jika customer_id null).        |
-| customer_phone           | String | Body | Nomor telepon pelanggan (wajib jika customer_id null).       |
-| customer_address         | String | Body | Alamat lengkap pelanggan (wajib jika customer_id null).      |
-| is_delivery              | Int    | Body | Indikator pengiriman (0 = ambil sendiri, 1 = antar).         |
-| notes                    | String | Body | Catatan khusus untuk pesanan ini (opsional).                 |
-| deliveries.shipping_cost | Float  | Body | Biaya pengiriman (wajib jika is_delivery = 1).               |
-| order_items              | Array  | Body | Daftar item layanan yang dipesan beserta detailnya.          |
-| payment.method           | String | Body | Metode pembayaran (cash, transfer, qris, atau null).         |
-| payment.amount_received  | Float  | Body | Jumlah uang yang diterima di awal. Default: 0.               |
-| payment.reference_no     | String | Body | Nomor referensi transaksi jika menggunakan non-tunai.        |
+| Key              | Type   | Location | Default | Description                                                  |
+| ---------------- | ------ | -------- | ------- | ------------------------------------------------------------ |
+| customer_id      | Int    | Body     | null    | ID unik pelanggan (opsional jika pelanggan sudah terdaftar). |
+| customer_name    | String | Body     | -       | Nama lengkap pelanggan (wajib jika customer_id null).        |
+| customer_phone   | String | Body     | -       | Nomor telepon pelanggan (wajib jika customer_id null).       |
+| customer_address | String | Body     | -       | Alamat lengkap pelanggan (wajib jika customer_id null).      |
+| is_delivery      | Int    | Body     | 0       | Indikator pengiriman (0 = ambil sendiri, 1 = antar).         |
+| notes            | String | Body     | -       | Catatan khusus untuk pesanan ini (opsional).                 |
+| deliveries       | Object | Body     | -       | Objek berisi shipping_cost.                                  |
+| order_items      | Array  | Body     | -       | Daftar objek service_id, weight_kg, atau quantity.           |
+| payment          | Object | Body     | -       | Objek berisi method, amount_received, reference_no.          |
 
 ```
   {
@@ -72,6 +70,15 @@ Bagian ini merinci data yang harus dikirimkan dalam _Body Request_. Kolom yang d
   }
 }
 ```
+
+### 🛡️ Logic Guard (Aturan Bisnis & Integritas) :
+
+1. Customer Lookup: Jika customer_id diisi, sistem akan memverifikasi keberadaannya. Jika null, sistem wajib membuat data di tabel customers terlebih dahulu.
+2. Price Protection: Harga satuan (unit_price) diambil langsung dari tabel services saat transaksi dibuat untuk menghindari manipulasi harga dari sisi klien.
+3. Automatic Estimation: estimated_ready_at dihitung otomatis: created_at + MAX(duration_hours) dari seluruh item layanan yang dipilih.
+4. Payment Status:
+   - Jika amount_received >= total_price, status payment = paid.
+   - Jika amount_received == 0, status payment = unpaid.
 
 ### Request Body :
 
@@ -119,7 +126,7 @@ Deskripsi: Pesanan berhasil dibuat dan disimpan ke seluruh tabel terkait dalam s
     "invoice_number": "INV-260105-001",
     "is_delivery": 1,
     "total_price": 60000.0,
-    "payment_status": "unpaid",
+    "payment_status": "cod_pending",
     "status_internal": "pending",
     "estimated_ready_at": "2026-01-08 13:00:00",
     "notes": "Jangan dicampur dengan baju luntur",
@@ -194,7 +201,8 @@ Terjadi ketika validasi input gagal memenuhi kriteria bisnis, seperti format dat
   "data": {
     "error_code": "VALIDATION_ERROR",
     "errors": {
-      "customer_phone": "Phone number format is invalid"
+      "order_items": "At least one service item is required",
+      "deliveries": "Shipping cost is required when is_delivery is 1"
     }
   }
 }
@@ -281,9 +289,9 @@ Terjadi kegagalan sistem yang tidak terduga pada server atau kegagalan transaksi
 
 ## Endpoint : `GET /orders`
 
-#### Description :
+### Description :
 
-Endpoint ini digunakan untuk mengambil daftar seluruh pesanan laundry. Mendukung fitur **Pagination**, **Search** (Invoice/Customer), dan **Filtering** (Status/Payment). Data dikirimkan dalam bentuk ringkasan (Summary) untuk menjaga kecepatan _load_ data pada dashboard `Kasir` dan `Kurir`.
+Endpoint ini digunakan untuk mengambil daftar seluruh pesanan laundry dalam format ringkasan (_Summary_). Dirancang khusus untuk kebutuhan operasional harian pada dashboard **Kasir** (antrean masuk) dan **Kurir** (antrean kirim). Sistem mendukung **Pagination** untuk efisiensi beban kerja server, serta **Search** dan **Filtering** multi-parameter.
 
 ### Role Based Access Control (RBAC) :
 
@@ -298,15 +306,15 @@ Endpoint ini digunakan untuk mengambil daftar seluruh pesanan laundry. Mendukung
 
 Bagian ini digunakan untuk mengontrol aliran data yang keluar dari database. Dengan menggunakan parameter ini, Anda memastikan server Golang tidak menarik data yang tidak diperlukan (Query Optimization).
 
-| Key             | Tipe   | In    | Default    | Deskripsi                                                                  |
-| --------------- | ------ | ----- | ---------- | -------------------------------------------------------------------------- |
-| page            | Int    | Query | 1          | Nomor halaman (Pagination).                                                |
-| per_page        | Int    | Query | 10         | Jumlah data per halaman. Selaras dengan meta.per_page pada response.       |
-| search          | String | Query | -          | Cari berdasarkan Invoice Number atau Nama Customer.                        |
-| status_internal | String | Query | -          | Filter status internal proses (pending, in-progress, ready-delivery, dll). |
-| payment_status  | String | Query | -          | Filter pembayaran (paid, unpaid).                                          |
-| sort_by         | String | Query | created_at | Mengurutkan berdasarkan kolom tertentu.                                    |
-| order           | String | Query | desc       | Urutan data (asc untuk terlama, desc untuk terbaru).                       |
+| Key             | Type   | Location | Default    | Description                                                                |
+| --------------- | ------ | -------- | ---------- | -------------------------------------------------------------------------- |
+| page            | Int    | Query    | 1          | Nomor halaman data.                                                        |
+| per_page        | Int    | Query    | 10         | Jumlah data per halaman (Maks. 100).                                       |
+| search          | String | Query    | -          | Partial search berdasarkan No. Invoice atau Nama Pelanggan.                |
+| status_internal | String | Query    | -          | Filter status internal proses (pending, in-progress, ready-delivery, dll). |
+| payment_status  | String | Query    | -          | Filter pembayaran (paid dan unpaid).                                       |
+| sort_by         | String | Query    | created_at | Mengurutkan berdasarkan kolom tertentu.                                    |
+| order           | String | Query    | desc       | asc (Terlama/A-Z) atau desc (Terbaru/Z-A).                                 |
 
 ```
 GET /api/orders?page=1&per_page=10&status_internal=pending&search=Romlah&sort_by=created_at&order=desc
@@ -327,14 +335,14 @@ Data berhasil diambil. Struktur ini memisahkan antara data (daftar pesanan) dan 
 ```json
 {
   "success": true,
-  "message": "Data retrieved successfully",
+  "message": "Orders retrieved successfully",
   "data": [
     {
       "id": 45,
       "invoice_number": "INV-260105-001",
       "is_delivery": 1,
       "total_price": 60000.0,
-      "payment_status": "unpaid",
+      "payment_status": "cod_pending",
       "status_internal": "pending",
       "estimated_ready_at": "2026-01-08 13:00:00",
       "created_by": 2,
@@ -374,21 +382,6 @@ Terjadi jika parameter filter salah format.
     "errors": {
       "page": "Page must be a positive integer"
     }
-  }
-}
-```
-
-#### ⚠️ 401 Unauthorized
-
-Terjadi ketika token akses tidak valid, kedaluwarsa, atau tidak disertakan dalam header.
-
-```json
-{
-  "success": false,
-  "message": "Invalid or missing access token",
-  "data": {
-    "error_code": "UNAUTHORIZED_ACCESS",
-    "errors": null
   }
 }
 ```
@@ -442,7 +435,7 @@ Terjadi kegagalan pada sistem internal atau kesalahan dari database.
 
 ## Endpoint : `GET /orders/{id}`
 
-#### Description :
+### Description :
 
 Endpoint ini digunakan untuk mengambil data detail lengkap dari satu pesanan tertentu. Backend akan melakukan operasi **JOIN** atau pemanggilan data dari **6 tabel** (`orders`, `customers`, `order_items`, `deliveries`, `payments`, dan `status_history`) untuk memberikan gambaran utuh mengenai satu transaksi secara transparan.
 
@@ -459,13 +452,19 @@ Endpoint ini digunakan untuk mengambil data detail lengkap dari satu pesanan ter
 
 Bagian ini menggunakan _Path Parameter_ untuk mengidentifikasi sumber data secara spesifik di database.
 
-| Key | Tipe    | In   | Default | Deskripsi                                   |
-| --- | ------- | ---- | ------- | ------------------------------------------- |
-| id  | Integer | Path | -       | ID unik pesanan yang ingin diambil datanya. |
+| Key | Type    | Location | Default | Description                                 |
+| --- | ------- | -------- | ------- | ------------------------------------------- |
+| id  | Integer | Path     | -       | ID unik pesanan yang ingin diambil datanya. |
 
 ```
 GET /api/orders/45
 ```
+
+### 🛡️ Logic Guard (Integritas Data) :
+
+1. Full View Consistency: Nominal uang (total_price, shipping_cost, subtotal) wajib menggunakan tipe Float untuk menjaga presisi desimal sesuai kesepakatan database.
+2. No Debt Policy: Karena sistem tidak mengenal hutang, payment_status pada level order harus sinkron dengan status di objek payment (Hanya paid atau unpaid).
+3. State Visibility: qty_pieces disajikan untuk membantu Staff melakukan verifikasi jumlah helai fisik saat proses pencucian agar tidak ada pakaian yang tertukar atau hilang.
 
 ### Request Body :
 
@@ -482,13 +481,13 @@ Data ditemukan dan dikembalikan secara lengkap. Struktur data tetap konsisten me
 ```json
 {
   "success": true,
-  "message": "Data retrieved successfully",
+  "message": "Order detail retrieved successfully",
   "data": {
     "id": 45,
     "invoice_number": "INV-260105-001",
     "is_delivery": 1,
     "total_price": 60000.0,
-    "payment_status": "unpaid",
+    "payment_status": "cod_pending",
     "status_internal": "pending",
     "estimated_ready_at": "2026-01-08 13:00:00",
     "notes": "Jangan dicampur dengan baju luntur",
@@ -569,21 +568,6 @@ Terjadi jika format ID yang dikirimkan pada URL tidak valid (bukan angka).
 }
 ```
 
-#### ⚠️ 401 Unauthorized
-
-Terjadi ketika token akses tidak valid, kedaluwarsa, atau tidak disertakan dalam header.
-
-```json
-{
-  "success": false,
-  "message": "Invalid or missing access token",
-  "data": {
-    "error_code": "UNAUTHORIZED_ACCESS",
-    "errors": null
-  }
-}
-```
-
 #### 🚫 403 Forbidden
 
 Terjadi jika role user (misal: Customer) mencoba mengakses detail pesanan milik orang lain (IDOR Protection).
@@ -648,7 +632,7 @@ Terjadi kegagalan koneksi database atau kesalahan logika JOIN pada query Golang.
 
 ## Endpoint : `PUT /orders/{id}`
 
-#### Description :
+### Description :
 
 Endpoint ini digunakan oleh **Owner/Cashier** untuk melakukan pembaruan data pesanan secara menyeluruh. **Aturan Bisnis Utama**: Perubahan hanya diizinkan jika `status_internal` masih bernilai `pending`. Jika pesanan sudah mulai diproses (`in-progress`), data dikunci untuk menjaga integritas laporan. Sistem akan menghitung ulang `total_price` dan memperbarui tagihan pada tabel `payments` secara otomatis.
 
@@ -666,13 +650,20 @@ Endpoint ini digunakan oleh **Owner/Cashier** untuk melakukan pembaruan data pes
 
 Bagian ini menggunakan _Path Parameter_ untuk mengunci ID pesanan yang akan direvisi di database.
 
-| Key | Tipe | In   | Default | Deskripsi                              |
-| --- | ---- | ---- | ------- | -------------------------------------- |
-| id  | Int  | Path | -       | ID unik pesanan yang ingin diperbarui. |
+| Key | Type | Location | Default | Description                            |
+| --- | ---- | -------- | ------- | -------------------------------------- |
+| id  | Int  | Path     | -       | ID unik pesanan yang ingin diperbarui. |
 
 ```
 PUT /api/orders/45
 ```
+
+### 🛡️ Logic Guard (Aturan Bisnis & Integritas) :
+
+1. Status Restriction: Permintaan wajib ditolak (400 Bad Request) jika pesanan sudah melewati tahap pending di database.
+2. Financial Integrity: Seluruh nominal menggunakan tipe Float. Sistem akan menghitung ulang total_price berdasarkan harga layanan terbaru.
+3. Payment Synchronization: Jika pesanan direvisi dan harga berubah, transaksi pembayaran lama di tabel payments yang masih pending akan disesuaikan nilainya. Jika sudah confirmed, maka Admin harus melakukan penyesuaian manual melalui endpoint pembayaran.
+4. No Debt Policy: Meskipun ada status transaksi pembayaran, sistem tetap memastikan pesanan tidak bisa dianggap lunas (paid) sebelum transaksi di tabel payments mencapai status confirmed
 
 ### Request Body :
 
@@ -713,7 +704,7 @@ Pesanan berhasil diperbarui. Response mengembalikan objek data terbaru yang suda
     "invoice_number": "INV-260105-001",
     "is_delivery": 1,
     "total_price": 110000.0,
-    "payment_status": "unpaid",
+    "payment_status": "cod_pending",
     "status_internal": "pending",
     "estimated_ready_at": "2026-01-08 13:00:00",
     "notes": "Jangan dicampur dengan baju luntur",
@@ -889,7 +880,7 @@ Terjadi kesalahan pada transaksi database atau kegagalan sistem internal saat pe
 
 ## Endpoint : `PATCH /orders/{id}`
 
-#### Description :
+### Description :
 
 Endpoint ini digunakan untuk memperbarui status operasional pesanan secara parsial (State Transition). Berbeda dengan PUT yang melakukan update data fisik, PATCH berfokus pada pergerakan workflow. Backend akan menjalankan transaksi atomik untuk memperbarui dua tabel utama:
 
@@ -910,13 +901,24 @@ Endpoint ini digunakan untuk memperbarui status operasional pesanan secara parsi
 
 Bagian ini menggunakan Path Parameter untuk menentukan pesanan mana yang akan diproses transisi statusnya.
 
-| Key | Tipe | In   | Default | Deskripsi                                    |
-| --- | ---- | ---- | ------- | -------------------------------------------- |
-| id  | Int  | Path | -       | ID unik pesanan yang ingin diubah statusnya. |
+| Key | Type | Location | Default | Description                                  |
+| --- | ---- | -------- | ------- | -------------------------------------------- |
+| id  | Int  | Path     | -       | ID unik pesanan yang ingin diubah statusnya. |
 
 ```
 PATCH /api/orders/45
 ```
+
+### 🛡️ Logic Guard (Aturan State Machine) :
+
+Untuk menjaga integritas operasional, sistem wajib memvalidasi transisi status berdasarkan Role:
+
+1. Sequence Validation: Status tidak boleh mundur (misal: dari ready kembali ke pending) kecuali dilakukan oleh owner.
+2. Role Restriction:
+   - staff: Hanya bisa mengubah status ke in-progress atau ready.
+   - courier: Hanya bisa mengubah status ke being-delivered atau completed (jika antar-jemput).
+   - cashier/owner: Memiliki otoritas penuh untuk semua status, termasuk cancelled.
+3. Payment Requirement: Status completed (pesanan diambil/diterima pelanggan) hanya bisa dipicu jika payment_status sudah paid. Sesuai kebijakan Tidak Bisa Hutang, barang tidak boleh keluar jika belum lunas.
 
 ### Request Body :
 
@@ -944,7 +946,7 @@ Status berhasil diperbarui. Mengikuti prinsip "The Finished Plate", response men
     "invoice_number": "INV-260105-001",
     "is_delivery": 1,
     "total_price": 110000.0,
-    "payment_status": "unpaid",
+    "payment_status": "cod_pending",
     "status_internal": "in-progress",
     "estimated_ready_at": "2026-01-08 13:00:00",
     "notes": "Jangan dicampur dengan baju luntur",
@@ -1029,21 +1031,6 @@ Terjadi jika transisi status melanggar aturan bisnis (misal: pesanan cancelled t
     "errors": {
       "status": "Cannot change status from 'ready' back to 'pending'"
     }
-  }
-}
-```
-
-#### ⚠️ 401 Unauthorized
-
-Terjadi ketika token akses tidak valid, kedaluwarsa, atau tidak disertakan dalam header.
-
-```json
-{
-  "success": false,
-  "message": "Invalid or missing access token",
-  "data": {
-    "error_code": "UNAUTHORIZED_ACCESS",
-    "errors": null
   }
 }
 ```
