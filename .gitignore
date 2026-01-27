@@ -1,0 +1,17 @@
+# Kunci keamanan (Sangat Penting!)
+.env
+
+# Binary hasil compile (agar tidak mengotori repo)
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+
+# Dependency (Opsional, karena sudah ada go.sum)
+vendor/
+
+# OS Specific
+.DS_Store
+Thumbs.db
