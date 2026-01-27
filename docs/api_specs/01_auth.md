@@ -4,7 +4,7 @@
 
 ---
 
-## Endpoint : `POST /auth/login`
+## Endpoint : `POST /api/auth/login`
 
 ### Description :
 
@@ -60,15 +60,13 @@ Otentikasi berhasil. Mengembalikan token akses dan profil singkat pengguna.
     "token": {
       "token_type": "Bearer",
       "access_token": "eyJhbGciOiJIUzI1NiIsInR...",
-      "expires_in": 86400
+      "refresh_token": "RT-XYZ-999...",
+      "expires_in": 900
     },
     "user": {
       "id": 1,
       "username": "farhanrizkimln",
       "role": "owner"
-      // "full_name": "Farhan Rizki Maulana",
-      // "email": "farhanrizkimln@gmail.com",
-      // "phone_number": "081234567890",
     }
   }
 }
@@ -154,7 +152,7 @@ Kegagalan teknis pada server, seperti database timeout atau gagal melakukan sign
 
 ---
 
-## Endpoint : `POST /auth/logout`
+## Endpoint : `POST /api/auth/logout`
 
 ### Description :
 
@@ -251,7 +249,7 @@ Terjadi kesalahan teknis yang tidak terduga pada server saat memproses validasi 
 
 ---
 
-## Endpoint : `GET /auth/me`
+## Endpoint : `GET /api/auth/me`
 
 ### Description :
 
@@ -299,13 +297,9 @@ Profil pengguna berhasil diambil secara sukses.
     "id": 1,
     "full_name": "Farhan Rizki Maulana",
     "username": "farhanrizkimln",
-    "email": "farhanrizki@gmail.com",
     "role": "owner",
-    "phone_number": "081234567890",
     "is_active": 1,
-    "last_login_at": "2026-01-12 08:12:36",
-    "created_at": "2026-01-12 08:12:36",
-    "updated_at": null
+    "created_at": "2026-01-12 08:12:36"
   }
 }
 ```

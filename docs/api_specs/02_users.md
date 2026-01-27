@@ -4,7 +4,7 @@
 
 ---
 
-## Endpoint : `POST /users`
+## Endpoint : `POST /api/users`
 
 ### Description :
 
@@ -76,7 +76,7 @@ Karyawan baru berhasil didaftarkan. Akun secara otomatis diatur dalam status akt
     "email": "sitiaminah@gmail.com",
     "role": "cashier",
     "phone_number": "082345678901",
-    "is_active": 1,
+    "is_active": true,
     "created_at": "2026-01-20 07:24:03",
     "updated_at": null
   }
@@ -180,7 +180,7 @@ Kegagalan teknis pada server atau database.
 
 ---
 
-## Endpoint : `GET /users`
+## Endpoint : `GET /api/users`
 
 ### Description :
 
@@ -199,15 +199,15 @@ Endpoint ini digunakan oleh **Owner** untuk mendapatkan daftar seluruh akun kary
 
 Daftar filter pencarian dan pengaturan data melalui Query String.
 
-| Key      | Type   | Location | Default    | Description                                       |
-| -------- | ------ | -------- | ---------- | ------------------------------------------------- |
-| page     | Int    | Query    | 1          | Nomor halaman.                                    |
-| per_page | Int    | Query    | 10         | Jumlah data per halaman.                          |
-| search   | String | Query    | -          | Cari berdasarkan nama atau username.              |
-| role     | Enum   | Query    | -          | Filter peran: owner, cashier, staff, courier.     |
-| status   | Int    | Query    | -          | Filter status akun: 1 (Aktif), 0 (Non-aktif).     |
-| sort_by  | String | Query    | created_at | Kolom pengurutan (contoh: full_name, created_at). |
-| order    | String | Query    | desc       | Arah: asc (A-Z/Lama) atau desc (Z-A/Baru).        |
+| Key      | Type   | Location | Default    | Description                                              |
+| -------- | ------ | -------- | ---------- | -------------------------------------------------------- |
+| page     | Int    | Query    | 1          | Nomor halaman.                                           |
+| per_page | Int    | Query    | 10         | Jumlah data per halaman.                                 |
+| search   | String | Query    | -          | Cari berdasarkan nama atau username.                     |
+| role     | Enum   | Query    | -          | Filter peran: owner, cashier, staff, courier.            |
+| status   | Int    | Query    | -          | Filter status akun: 1 (Aktif/true), 0 (Non-aktif/false). |
+| sort_by  | String | Query    | created_at | Kolom pengurutan (contoh: full_name, created_at).        |
+| order    | String | Query    | desc       | Arah: asc (A-Z/Lama) atau desc (Z-A/Baru).               |
 
 ```
 GET /api/users?page=1&per_page=10&status=1&sort_by=full_name&order=asc
@@ -235,14 +235,14 @@ Daftar pengguna berhasil diambil secara sukses beserta informasi metadata halama
       "full_name": "Farhan Rizki Maulana",
       "username": "farhanrizkimln",
       "role": "owner",
-      "is_active": 1
+      "is_active": true
     },
     {
       "id": 2,
       "full_name": "Siti Aminah",
       "username": "sitiaminah",
       "role": "cashier",
-      "is_active": 1
+      "is_active": true
     }
   ],
   "meta": {
@@ -334,7 +334,7 @@ Kegagalan sistem saat pengambilan data.
 
 ---
 
-## Endpoint : `GET /users/{id}`
+## Endpoint : `GET /api/users/{id}`
 
 ### Description :
 
@@ -384,7 +384,7 @@ Data pengguna ditemukan. Informasi disajikan dalam bentuk objek tunggal yang ber
     "email": "farhanrizki@gmail.com",
     "role": "owner",
     "phone_number": "081234567890",
-    "is_active": 1,
+    "is_active": true,
     "last_login_at": "2025-12-28 05:12:36",
     "created_at": "2025-12-28 03:12:36",
     "updated_at": null
@@ -486,7 +486,7 @@ Kegagalan teknis pada server atau database saat melakukan pencarian data.
 
 ---
 
-## Endpoint : `PUT /users/{id}`
+## Endpoint : `PUT /api/users/{id}`
 
 ### Description :
 
@@ -663,7 +663,7 @@ Kegagalan teknis pada server atau database.
 
 ---
 
-## Endpoint : `DELETE /users/{id}`
+## Endpoint : `DELETE /api/users/{id}`
 
 ### Description :
 

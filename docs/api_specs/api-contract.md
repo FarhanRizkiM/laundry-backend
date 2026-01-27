@@ -31,90 +31,88 @@ Authorization: Bearer <token>
 
 ### Auths
 
-- POST /auth/login
+- POST /api/auth/login
 
-- POST /auth/logout
+- POST /api/auth/logout
 
-- GET /auth/me
+- GET /api/auth/me
 
 ### Users
 
-- POST /users
+- POST /api/users
 
-- GET /users
+- GET /api/users
 
-- GET /users/{id}
+- GET /api/users/{id}
 
-- PUT /users/{id}
+- PUT /api/users/{id}
 
-- DELETE /users/{id}
+- DELETE /api/users/{id}
 
 ### Service Categories
 
-- POST /categories
+- POST /api/categories
 
-- GET /categories
+- GET /api/categories
 
-- GET /categories/{id}
+- GET /api/categories/{id}
 
-- PUT /categories/{id}
+- PUT /api/categories/{id}
 
-- DELETE /categories/{id}
+- DELETE /api/categories/{id}
 
 ### Services
 
-- POST /services
+- POST /api/services
 
-- GET /services
+- GET /api/services
 
-- GET /services/{id}
+- GET /api/services/{id}
 
-- PUT /services/{id}
+- PUT /api/services/{id}
 
-- DELETE /services/{id}
+- DELETE /api/services/{id}
 
 ### Orders
 
-- POST /orders
+- POST /api/orders
 
-- GET /orders
+- GET /api/orders
 
-- GET /orders/{id}
+- GET /api/orders/{id}
 
-- PUT /orders/{id}
+- PUT /api/orders/{id}
 
-- PATCH /orders/{id}
+- PATCH /api/orders/{id}
 
 ### Payments
 
-- GET /payments
+- GET /api/payments
 
-- GET /payments/{id}
+- GET /api/payments/{id}
 
-- PATCH /payments/{id}
+- PATCH /api/payments/{id}
 
 ### Deliveries
 
-- GET /deliveries
+- GET /api/deliveries
 
-- GET /deliveries/{id}
+- GET /api/deliveries/{id}
 
-- GET /deliveries/my-tasks
+- GET /api/deliveries/my-tasks
 
-- PATCH /deliveries/{id}
+- PATCH /api/deliveries/{id}
 
 ### Customer (Endpoint Public Tracking)
 
-- GET /orders/track/{invoice_number}
+- GET /api/orders/track/{invoice_number}
 
 ### Reports
 
-- GET /reports/dashboard
+- GET /api/reports/dashboard
 
-- GET /reports/revenue
+- GET /api/reports/revenue
 
-- GET /reports/payments
+- GET /api/reports/payments
 
-- GET /reports/employees
-
-- GET /reports/analytics
+- GET /api/reports/employees
