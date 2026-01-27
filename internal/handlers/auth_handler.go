@@ -95,6 +95,43 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	})
 }
 
+// GetMe menangani permintaan untuk melihat profil user sendiri (BARU).
+// @Summary Get User Profile
+// @Produce json
+// @Router /api/v1/auth/me [get]
+func (h *AuthHandler) GetMe(c *gin.Context) {
+
+	// 1. Ambil User ID dari Context (Titipan Middleware)
+	userID := c.MustGet("user_id").(int64)
+
+	// 2. Panggil Service
+	res, err := h.authService.GetProfile(c.Request.Context(), userID)
+	if err != nil {
+		// Handle khusus error ACCOUNT_INACTIVE agar return 403 Forbidden sesuai Spec
+		if err.Error() == "ACCOUNT_INACTIVE" {
+			c.JSON(http.StatusForbidden, dto.BaseResponse{
+				Success: false,
+				Message: "Access denied: your account is currently inactive",
+				Data: dto.ErrorResponseData{
+					ErrorCode: "ACCOUNT_INACTIVE",
+					Errors:    nil,
+				},
+			})
+			return
+		}
+
+		h.handleError(c, err)
+		return
+	}
+
+	// 3. Response Sukses
+	c.JSON(http.StatusOK, dto.BaseResponse{
+		Success: true,
+		Message: "User profile retrieved successfully",
+		Data:    res,
+	})
+}
+
 // handleError adalah helper untuk memetakan error bisnis ke response HTTP yang sesuai.
 func (h *AuthHandler) handleError(c *gin.Context, err error) {
 	switch err.Error() {
@@ -115,6 +152,16 @@ func (h *AuthHandler) handleError(c *gin.Context, err error) {
 			Message: "Your account is inactive. Please contact the administrator.",
 			Data: dto.ErrorResponseData{
 				ErrorCode: "ACCOUNT_INACTIVE",
+				Errors:    nil,
+			},
+		})
+
+	case "sql: no rows in result set": // Handle jika user tidak ditemukan di DB
+		c.JSON(http.StatusNotFound, dto.BaseResponse{
+			Success: false,
+			Message: "User not found",
+			Data: dto.ErrorResponseData{
+				ErrorCode: "USER_NOT_FOUND",
 				Errors:    nil,
 			},
 		})

@@ -18,5 +18,7 @@ func SetupAuthRoutes(router *gin.RouterGroup, authHandler *handlers.AuthHandler,
 
 		// Endpoint privat (WAJIB login / membawa token)
 		auth.POST("/logout", middleware.AuthMiddleware(authRepo), authHandler.Logout)
+
+		auth.GET("/me", middleware.RateLimiter(), middleware.AuthMiddleware(authRepo), authHandler.GetMe)
 	}
 }
