@@ -4,6 +4,7 @@ import (
 	"laundry-backend/internal/dto"
 	"laundry-backend/internal/services"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -50,6 +51,47 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		Success: true,
 		Message: "Login successfully",
 		Data:    res,
+	})
+}
+
+// Logout menangani permintaan untuk keluar dari sistem.
+func (h *AuthHandler) Logout(c *gin.Context) {
+	// 1. Ambil Refresh Token dari request body atau header (sesuai kesepakatan DTO)
+	// Untuk saat ini kita asumsikan dikirim via JSON body sederhana
+	var req struct {
+		RefreshToken string `json:"refresh_token" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.BaseResponse{
+			Success: false,
+			Message: "Refresh token is required for logout",
+			Data: dto.ErrorResponseData{
+				ErrorCode: "VALIDATION_ERROR",
+				Errors:    err.Error(),
+			},
+		})
+		return
+	}
+
+	// 2. [BARU] Ambil Data dari Context (Hasil titipan Middleware)
+	// Menggunakan MustGet karena kita yakin Middleware sudah menaruhnya di sana
+	jti := c.MustGet("jti").(string)
+	exp := c.MustGet("exp").(time.Time)
+
+	// 3. Panggil Service dengan data lengkap
+	err := h.authService.Logout(c.Request.Context(), req.RefreshToken, jti, exp)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.BaseResponse{
+		Success: true,
+		Message: "Logout successfully",
+		Data: gin.H{
+			"status": "access_terminated",
+		},
 	})
 }
 
