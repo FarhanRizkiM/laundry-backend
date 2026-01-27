@@ -4,7 +4,7 @@
 
 ---
 
-## Endpoint : `POST /api/auth/login`
+## Endpoint : `POST /api/v1/auth/login`
 
 ### Description :
 
@@ -152,7 +152,9 @@ Kegagalan teknis pada server, seperti database timeout atau gagal melakukan sign
 
 ---
 
-## Endpoint : `POST /api/auth/logout`
+## Endpoint : `POST /api/v1/auth/refresh-token`
+
+## Endpoint : `POST /api/v1/auth/logout`
 
 ### Description :
 
@@ -249,7 +251,7 @@ Terjadi kesalahan teknis yang tidak terduga pada server saat memproses validasi 
 
 ---
 
-## Endpoint : `GET /api/auth/me`
+## Endpoint : `GET /api/v1/auth/me`
 
 ### Description :
 
