@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"errors"
 	"os"
 	"strconv"
 	"time"
@@ -61,6 +62,29 @@ func GenerateAccessToken(userID int64, username, role string) (string, string, e
 	tokenString, err := token.SignedString(getSecretKey())
 
 	return tokenString, jti, err
+}
+
+// ValidateAccessToken memvalidasi string token dan mengembalikan data Claims di dalamnya.
+func ValidateAccessToken(tokenString string) (*Claims, error) {
+	// 1. Parse token dengan struct Claims kita
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		// Pastikan metode signing-nya HS256 (sesuai saat kita generate)
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
+		}
+		return getSecretKey(), nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Validasi apakah token tersebut valid secara struktur dan tanda tangan
+	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		return claims, nil
+	}
+
+	return nil, errors.New("invalid token claims")
 }
 
 // GenerateRefreshToken menghasilkan string acak unik untuk kebutuhan pembaruan access token.
