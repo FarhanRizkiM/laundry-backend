@@ -15,6 +15,7 @@ import (
 type AuthService interface {
 	Login(ctx context.Context, req dto.LoginRequest) (*dto.LoginResponse, error)
 	Logout(ctx context.Context, refreshToken string, jti string, expiresAt time.Time) error
+	GetProfile(ctx context.Context, userID int64) (*dto.UserProfileResponse, error)
 }
 
 // authService adalah implementasi dari AuthService yang menggabungkan repository user dan repository auth.
@@ -103,4 +104,40 @@ func (s *authService) Logout(ctx context.Context, refreshToken string, jti strin
 	}
 
 	return s.authRepo.AddToBlacklist(ctx, blacklistData)
+}
+
+// GetProfile mengambil data berdasarkan id
+func (s *authService) GetProfile(ctx context.Context, userID int64) (*dto.UserProfileResponse, error) {
+
+	// 1. Ambil data user dari repository
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Cek Status Aktif (Logic untuk return 403 Forbidden)
+	if !user.IsActive {
+		return nil, errors.New("ACCOUNT_INACTIVE")
+	}
+
+	// 3. Konversi IsActive (Boolean -> Int 1/0)
+	isActiveInt := 0
+	if user.IsActive {
+		isActiveInt = 1
+	}
+
+	// 4. Format Tanggal (Standard Go Time Layout -> "YYYY-MM-DD HH:MM:SS")
+	createdAtStr := user.CreatedAt.Format("2006-01-02 15:04:05")
+
+	// 5. Mapping ke DTO
+	// Catatan: Karena kolom 'full_name' belum ada di DB, kita isi dengan username dulu
+	// agar sesuai spesifikasi JSON Frontend.
+	return &dto.UserProfileResponse{
+		ID:        user.ID,
+		FullName:  user.FullName,
+		Username:  user.Username,
+		Role:      user.Role,
+		IsActive:  isActiveInt,
+		CreatedAt: createdAtStr,
+	}, nil
 }

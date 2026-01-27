@@ -26,3 +26,13 @@ type UserResponse struct {
 	Username string `json:"username"`
 	Role     string `json:"role"`
 }
+
+// UserProfileResponse adalah format spesifik untuk endpoint profil
+type UserProfileResponse struct {
+	ID        int64  `json:"id"`
+	FullName  string `json:"full_name"`
+	Username  string `json:"username"`
+	Role      string `json:"role"`
+	IsActive  int    `json:"is_active"`
+	CreatedAt string `json:"created_at"`
+}
