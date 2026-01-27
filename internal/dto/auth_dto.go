@@ -36,3 +36,15 @@ type UserProfileResponse struct {
 	IsActive  int    `json:"is_active"`
 	CreatedAt string `json:"created_at"`
 }
+
+// RefreshTokenRequest digunakan saat frontend minta access token baru.
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+// RefreshTokenResponse hanya mengembalikan Access Token baru (Refresh Token pakai yang lama).
+type RefreshTokenResponse struct {
+	TokenType   string `json:"token_type"`
+	AccessToken string `json:"access_token"`
+	ExpiresIn   int    `json:"expires_in"`
+}

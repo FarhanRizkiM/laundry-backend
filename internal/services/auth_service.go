@@ -16,6 +16,7 @@ type AuthService interface {
 	Login(ctx context.Context, req dto.LoginRequest) (*dto.LoginResponse, error)
 	Logout(ctx context.Context, refreshToken string, jti string, expiresAt time.Time) error
 	GetProfile(ctx context.Context, userID int64) (*dto.UserProfileResponse, error)
+	RefreshToken(ctx context.Context, req dto.RefreshTokenRequest) (*dto.RefreshTokenResponse, error)
 }
 
 // authService adalah implementasi dari AuthService yang menggabungkan repository user dan repository auth.
@@ -69,7 +70,7 @@ func (s *authService) Login(ctx context.Context, req dto.LoginRequest) (*dto.Log
 	rtModel := &models.RefreshToken{
 		UserID:    user.ID,
 		Token:     refreshToken,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
 
 	if err := s.authRepo.CreateRefreshToken(ctx, rtModel); err != nil {
@@ -89,6 +90,41 @@ func (s *authService) Login(ctx context.Context, req dto.LoginRequest) (*dto.Log
 			Username: user.Username,
 			Role:     user.Role,
 		},
+	}, nil
+}
+
+// RefreshToken mengganti access token yang baru berdasarkan refresh token yang dimiiliki.
+func (s *authService) RefreshToken(ctx context.Context, req dto.RefreshTokenRequest) (*dto.RefreshTokenResponse, error) {
+
+	// 1. Cek keberadaan token di database
+	storedToken, err := s.authRepo.GetRefreshToken(ctx, req.RefreshToken)
+	if err != nil {
+		// Jika error sql: no rows in result set, berarti token tidak valid/sudah logout
+		return nil, errors.New("INVALID_TOKEN")
+	}
+
+	// 2. Cek apakah token sudah expired (Masa hidup 24 jam habis)
+	if storedToken.ExpiresAt.Before(time.Now()) {
+		return nil, errors.New("TOKEN_EXPIRED")
+	}
+
+	// 3. Ambil data user terbaru untuk memastikan role & username update
+	user, err := s.userRepo.GetByID(ctx, storedToken.UserID)
+	if err != nil {
+		return nil, errors.New("USER_NOT_FOUND")
+	}
+
+	// 4. Generate Access Token BARU (15 Menit)
+	newAccessToken, _, err := utils.GenerateAccessToken(user.ID, user.Username, user.Role)
+	if err != nil {
+		return nil, err
+	}
+
+	// 5. Kembalikan Access Token baru saja
+	return &dto.RefreshTokenResponse{
+		TokenType:   "Bearer",
+		AccessToken: newAccessToken,
+		ExpiresIn:   900,
 	}, nil
 }
 

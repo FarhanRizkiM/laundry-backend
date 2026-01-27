@@ -54,7 +54,45 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	})
 }
 
+// Login menangani permintaan masuk untuk autentikasi pengguna.
+// @Summary Refresh Token
+// @Produce json
+// @Router /api/v1/auth/refresh [post]
+func (h *AuthHandler) RefreshToken(c *gin.Context) {
+	var req dto.RefreshTokenRequest
+
+	// Validasi Input
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.BaseResponse{
+			Success: false,
+			Message: "Refresh token is required",
+			Data: dto.ErrorResponseData{
+				ErrorCode: "VALIDATION_ERROR",
+				Errors:    err.Error(),
+			},
+		})
+		return
+	}
+
+	// Panggil Service
+	res, err := h.authService.RefreshToken(c.Request.Context(), req)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	// sukses
+	c.JSON(http.StatusOK, dto.BaseResponse{
+		Success: true,
+		Message: "Access token refreshed successfully",
+		Data:    res,
+	})
+}
+
 // Logout menangani permintaan untuk keluar dari sistem.
+// @Summary User Logout
+// @Produce json
+// @Router /api/v1/auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	// 1. Ambil Refresh Token dari request body atau header (sesuai kesepakatan DTO)
 	// Untuk saat ini kita asumsikan dikirim via JSON body sederhana
@@ -96,7 +134,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 }
 
 // GetMe menangani permintaan untuk melihat profil user sendiri (BARU).
-// @Summary Get User Profile
+// @Summary Get Me Profile
 // @Produce json
 // @Router /api/v1/auth/me [get]
 func (h *AuthHandler) GetMe(c *gin.Context) {
@@ -133,6 +171,7 @@ func (h *AuthHandler) GetMe(c *gin.Context) {
 }
 
 // handleError adalah helper untuk memetakan error bisnis ke response HTTP yang sesuai.
+// Helper: Handle Error & HTTP Codes.
 func (h *AuthHandler) handleError(c *gin.Context, err error) {
 	switch err.Error() {
 
@@ -154,6 +193,18 @@ func (h *AuthHandler) handleError(c *gin.Context, err error) {
 				ErrorCode: "ACCOUNT_INACTIVE",
 				Errors:    nil,
 			},
+		})
+
+	case "TOKEN_EXPIRED":
+		c.JSON(http.StatusUnauthorized, dto.BaseResponse{
+			Success: false, Message: "Refresh token has expired",
+			Data: dto.ErrorResponseData{ErrorCode: "TOKEN_EXPIRED", Errors: "Please login again"},
+		})
+
+	case "INVALID_TOKEN":
+		c.JSON(http.StatusUnauthorized, dto.BaseResponse{
+			Success: false, Message: "Invalid refresh token",
+			Data: dto.ErrorResponseData{ErrorCode: "INVALID_TOKEN", Errors: "Token not found or revoked"},
 		})
 
 	case "sql: no rows in result set": // Handle jika user tidak ditemukan di DB

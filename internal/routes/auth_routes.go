@@ -16,8 +16,10 @@ func SetupAuthRoutes(router *gin.RouterGroup, authHandler *handlers.AuthHandler,
 		// Endpoint publik (Tidak perlu login)
 		auth.POST("/login", middleware.RateLimiter(), authHandler.Login)
 
+		auth.POST("/refresh", middleware.RateLimiter(), authHandler.RefreshToken)
+
 		// Endpoint privat (WAJIB login / membawa token)
-		auth.POST("/logout", middleware.AuthMiddleware(authRepo), authHandler.Logout)
+		auth.POST("/logout", middleware.RateLimiter(), middleware.AuthMiddleware(authRepo), authHandler.Logout)
 
 		auth.GET("/me", middleware.RateLimiter(), middleware.AuthMiddleware(authRepo), authHandler.GetMe)
 	}
