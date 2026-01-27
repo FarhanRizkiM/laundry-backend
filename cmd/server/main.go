@@ -63,7 +63,7 @@ func main() {
 
 	// Registrasi Rute
 	v1 := r.Group("/api/v1")
-	routes.SetupAuthRoutes(v1, authHandler)
+	routes.SetupAuthRoutes(v1, authHandler, authRepo)
 
 	// 5. Menjalankan Server
 	port := os.Getenv("PORT")
