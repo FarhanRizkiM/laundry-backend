@@ -39,12 +39,8 @@ func main() {
 	defer db.Close()
 
 	// Konfigurasi Database Pool (Standar VIP)
-
-	// SetMaxOpenConns membatasi jumlah koneksi yang terbuka ke database.
 	db.SetMaxOpenConns(25)
-	// SetMaxIdleConns menjaga jumlah koneksi standby agar tidak dibuat ulang terus menerus.
 	db.SetMaxIdleConns(25)
-	// SetConnMaxLifetime memastikan koneksi yang sudah tua ditutup dan diganti yang baru.
 	db.SetConnMaxLifetime(5 * time.Minute)
 
 	if err := db.Ping(); err != nil {
@@ -52,18 +48,28 @@ func main() {
 	}
 
 	// 3. Dependency Injection (Menyambungkan Kabel-Kabel)
+
+	// A. Repositories (Layer Data)
 	userRepo := repositories.NewUserRepository(db)
 	authRepo := repositories.NewAuthRepository(db)
 
+	// B. Services (Layer Bisnis)
 	authService := services.NewAuthService(authRepo, userRepo)
+	userService := services.NewUserService(userRepo) // --- BARU: Service User
+
+	// C. Handlers (Layer HTTP)
 	authHandler := handlers.NewAuthHandler(authService)
+	userHandler := handlers.NewUserHandler(userService) // --- BARU: Handler User
 
 	// 4. Inisialisasi Framework Gin
 	r := gin.Default()
 
 	// Registrasi Rute
 	v1 := r.Group("/api/v1")
+
+	// Panggil setup route masing-masing modul
 	routes.SetupAuthRoutes(v1, authHandler, authRepo)
+	routes.SetupUserRoutes(v1, userHandler, authRepo) // --- BARU: Route User didaftarkan
 
 	// 5. Menjalankan Server
 	port := os.Getenv("PORT")
