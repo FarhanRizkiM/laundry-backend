@@ -4,7 +4,7 @@
 
 ---
 
-## Endpoint : `POST /api/users`
+## Endpoint : `POST /api/v1/users`
 
 ### Description :
 
@@ -180,7 +180,7 @@ Kegagalan teknis pada server atau database.
 
 ---
 
-## Endpoint : `GET /api/users`
+## Endpoint : `GET /api/v1/users`
 
 ### Description :
 
@@ -210,7 +210,7 @@ Daftar filter pencarian dan pengaturan data melalui Query String.
 | order    | String | Query    | desc       | Arah: asc (A-Z/Lama) atau desc (Z-A/Baru).               |
 
 ```
-GET /api/users?page=1&per_page=10&status=1&sort_by=full_name&order=asc
+GET /api/v1/users?page=1&per_page=10&status=1&sort_by=full_name&order=asc
 ```
 
 ### Request Body :
@@ -334,7 +334,7 @@ Kegagalan sistem saat pengambilan data.
 
 ---
 
-## Endpoint : `GET /api/users/{id}`
+## Endpoint : `GET /api/v1/users/{id}`
 
 ### Description :
 
@@ -358,7 +358,7 @@ Identifikasi pengguna dilakukan melalui jalur URL menggunakan ID unik yang terda
 | id  | Int  | Path     | -       | ID Unik (Primary Key) karyawan yang ingin dilihat detailnya. |
 
 ```
-GET /api/users/1
+GET /api/v1/users/1
 ```
 
 ### Request Body :
@@ -486,7 +486,7 @@ Kegagalan teknis pada server atau database saat melakukan pencarian data.
 
 ---
 
-## Endpoint : `PUT /api/users/{id}`
+## Endpoint : `PUT /api/v1/users/{id}`
 
 ### Description :
 
@@ -511,7 +511,7 @@ Bagian ini menggunakan Path Parameter untuk menentukan target pengguna yang akan
 | id  | Int  | Path     | -       | ID Unik karyawan yang akan diperbarui datanya. |
 
 ```
-PUT /api/users/1
+PUT /api/v1/users/1
 ```
 
 ### Logic Guard :
@@ -663,7 +663,7 @@ Kegagalan teknis pada server atau database.
 
 ---
 
-## Endpoint : `DELETE /api/users/{id}`
+## Endpoint : `DELETE /api/v1/users/{id}`
 
 ### Description :
 
@@ -687,7 +687,7 @@ Identifikasi target dilakukan melalui jalur URL menggunakan ID unik pengguna.
 | id  | Integer | Path     | -       | ID Unik (Primary Key) karyawan yang akan dinonaktifkan. |
 
 ```
-DELETE /api/users/1
+DELETE /api/v1/users/1
 ```
 
 ### 🛡️ Logic Guard (Aturan Keamanan) :
