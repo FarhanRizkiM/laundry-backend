@@ -37,7 +37,7 @@ func NewAuthService(authRepo repositories.AuthRepository, userRepo repositories.
 func (s *authService) Login(ctx context.Context, req dto.LoginRequest) (*dto.LoginResponse, error) {
 
 	// 1. Cari user berdasarkan username
-	user, err := s.userRepo.GetByUsername(ctx, req.Username)
+	user, err := s.userRepo.FindUserByUsername(ctx, req.Username)
 	if err != nil {
 		// Kita kembalikan pesan yang sama untuk keamanan
 		return nil, errors.New("INVALID_CREDENTIALS")
@@ -109,7 +109,7 @@ func (s *authService) RefreshToken(ctx context.Context, req dto.RefreshTokenRequ
 	}
 
 	// 3. Ambil data user terbaru untuk memastikan role & username update
-	user, err := s.userRepo.GetByID(ctx, storedToken.UserID)
+	user, err := s.userRepo.FindUserByID(ctx, storedToken.UserID)
 	if err != nil {
 		return nil, errors.New("USER_NOT_FOUND")
 	}
@@ -146,7 +146,7 @@ func (s *authService) Logout(ctx context.Context, refreshToken string, jti strin
 func (s *authService) GetProfile(ctx context.Context, userID int64) (*dto.UserProfileResponse, error) {
 
 	// 1. Ambil data user dari repository
-	user, err := s.userRepo.GetByID(ctx, userID)
+	user, err := s.userRepo.FindUserByID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
