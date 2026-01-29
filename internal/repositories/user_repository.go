@@ -7,104 +7,114 @@ import (
 	"laundry-backend/internal/models"
 )
 
-// UserRepository mendefinisikan kontrak untuk interaksi database terkait data pengguna.
+// UserRepository defines the contract for user-related database operations.
 type UserRepository interface {
-	// Method POST
+
+	// Create Operations
 	InsertUser(ctx context.Context, user *models.User) error
 
-	// Method GET
-	FetchAllUsers(ctx context.Context, limit, offset int, search, role string, status int) ([]models.User, int64, error)
-	FindUserByUsername(ctx context.Context, username string) (*models.User, error)
-	FindUserByID(ctx context.Context, id int64) (*models.User, error)
+	// Read Operations
+	FetchUsers(ctx context.Context, limit, offset int, search, role string, status int) ([]models.User, int64, error)
+	FindByID(ctx context.Context, id int64) (*models.User, error)
+	FindByUsername(ctx context.Context, username string) (*models.User, error)
 
-	// Method PUT
-	UpdatedRowUser(ctx context.Context, user *models.User) error
+	// Update Operations
+	UpdateUser(ctx context.Context, user *models.User) error
 
-	// Method DELETE
-	SetUserInactive(ctx context.Context, id int64) error
+	// Delete Operations (Soft Delete)
+	DeleteUser(ctx context.Context, id int64) error
 
-	// --- Helper Validasi Unik ---
+	// Validation Helpers
 	IsEmailExists(ctx context.Context, email string, excludeID int64) (bool, error)
 	IsPhoneExists(ctx context.Context, phone string, excludeID int64) (bool, error)
 	IsUsernameExists(ctx context.Context, username string, excludeID int64) (bool, error)
 }
 
-// userRepository adalah implementasi konkrit dari interface UserRepository  yang bertanggung jawab atas query SQL ke tabel users.
+// userRepository is the concrete implementation of UserRepository using sql.DB.
 type userRepository struct {
 	db *sql.DB
 }
 
-// NewUserRepository membuat instance baru dari UserRepository.
+// NewUserRepository creates a new instance of UserRepository.
 func NewUserRepository(db *sql.DB) UserRepository {
 	return &userRepository{db: db}
 }
 
-// --- IMPLEMENTASI ---
+// --- IMPLEMENTATION ---
 
-// 1. InsertUser (Insert Data Baru)
+// InsertUser creates a new user record in the database.
 func (r *userRepository) InsertUser(ctx context.Context, user *models.User) error {
-	// A. Query Dasar
-	query := "INSERT INTO users (full_name, username, email, password_hash, role, phone_number, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+	query := `
+		INSERT INTO users (full_name, username, email, password_hash, role, phone_number, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`
 
-	// Eksekusi Query
-	res, err := r.db.ExecContext(ctx, query, user.FullName, user.Username, user.Email, user.PasswordHash, user.Role, user.PhoneNumber, user.IsActive, user.CreatedAt)
+	res, err := r.db.ExecContext(ctx, query,
+		user.FullName,
+		user.Username,
+		user.Email,
+		user.PasswordHash,
+		user.Role,
+		user.PhoneNumber,
+		user.IsActive,
+		user.CreatedAt,
+	)
 	if err != nil {
 		return err
 	}
 
-	// Ambil ID yang baru saja digenerate (Auto Increment)
 	id, err := res.LastInsertId()
 	if err != nil {
 		return err
 	}
+
 	user.ID = id
 	return nil
 }
 
-// 2. FetchAllUsers (List dengan Pagination & Filter)
-func (r *userRepository) FetchAllUsers(ctx context.Context, limit, offset int, search, role string, status int) ([]models.User, int64, error) {
+// FetchUsers retrieves a list of users with pagination and filtering support.
+func (r *userRepository) FetchUsers(ctx context.Context, limit, offset int, search, role string, status int) ([]models.User, int64, error) {
 
-	// A. Query Dasar
+	// 1. Base Query Construction
 	query := "SELECT id, full_name, username, role, is_active FROM users WHERE 1=1"
 	countQuery := "SELECT COUNT(*) FROM users WHERE 1=1"
 	var args []interface{}
 
-	// B. Filter Dinamis
+	// 2. Dynamic Filtering
 	if search != "" {
-		// Cari di nama ATAU username
-		query += " AND (full_name LIKE ? OR username LIKE ?)"
-		countQuery += " AND (full_name LIKE ? OR username LIKE ?)"
+		filter := " AND (full_name LIKE ? OR username LIKE ?)"
+		query += filter
+		countQuery += filter
 		searchTerm := "%" + search + "%"
 		args = append(args, searchTerm, searchTerm)
 	}
 
 	if role != "" {
-		query += " AND role = ?"
-		countQuery += " AND role = ?"
+		filter := " AND role = ?"
+		query += filter
+		countQuery += filter
 		args = append(args, role)
 	}
 
-	// Filter Status (Jika -1 berarti tampilkan semua, jika 0/1 filter sesuai nilai)
-	if status != -1 {
-		query += " AND is_active = ?"
-		countQuery += " AND is_active = ?"
+	if status != -1 { // -1 means ignore status filter
+		filter := " AND is_active = ?"
+		query += filter
+		countQuery += filter
 		args = append(args, status)
 	}
 
-	// C. Pagination & Sorting
-	query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
-
-	// D. Hitung Total Data (Untuk Meta Pagination)
+	// 3. Count Total Items (for Pagination Meta)
 	var totalItems int64
 	err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&totalItems)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// E. Eksekusi Query Data
-	// Tambahkan limit & offset ke args untuk query data
-	argsData := append(args, limit, offset)
-	rows, err := r.db.QueryContext(ctx, query, argsData...)
+	// 4. Pagination & Sorting
+	query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
+
+	// 5. Execute Data Query
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -113,27 +123,23 @@ func (r *userRepository) FetchAllUsers(ctx context.Context, limit, offset int, s
 	var users []models.User
 	for rows.Next() {
 		var u models.User
-		if err := rows.Scan(
-			&u.ID,
-			&u.FullName,
-			&u.Username,
-			&u.Role,
-			&u.IsActive,
-		); err != nil {
+		if err := rows.Scan(&u.ID, &u.FullName, &u.Username, &u.Role, &u.IsActive); err != nil {
 			return nil, 0, err
 		}
 		users = append(users, u)
 	}
+
 	return users, totalItems, nil
 }
 
-// 3. FindUserByID (Detail User Lengkap)
-func (r *userRepository) FindUserByID(ctx context.Context, id int64) (*models.User, error) {
+// FindByID retrieves a single user's detailed information by ID.
+func (r *userRepository) FindByID(ctx context.Context, id int64) (*models.User, error) {
 
-	// A. Query Dasar
-	query := "SELECT id, full_name, username, email, password_hash, role, phone_number, is_active, last_login_at, created_at, updated_at FROM users WHERE id = ?"
+	query := `
+		SELECT id, full_name, username, email, password_hash, role, phone_number, is_active, last_login_at, created_at, updated_at 
+		FROM users WHERE id = ?
+	`
 
-	// Eksekusi Query
 	var u models.User
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&u.ID,
@@ -151,20 +157,20 @@ func (r *userRepository) FindUserByID(ctx context.Context, id int64) (*models.Us
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, errors.New("User not found")
+			return nil, errors.New("RESOURCE_NOT_FOUND")
 		}
 		return nil, err
 	}
 	return &u, nil
 }
 
-// 4. FindUserByUsername (Dipakai Login & Auth Middleware).
-func (r *userRepository) FindUserByUsername(ctx context.Context, username string) (*models.User, error) {
+// FindByUsername retrieves a user by their username (used for Login).
+func (r *userRepository) FindByUsername(ctx context.Context, username string) (*models.User, error) {
+	query := `
+		SELECT id, full_name, username, password_hash, role, is_active 
+		FROM users WHERE username = ?
+	`
 
-	// A. Query Dasar
-	query := "SELECT id, full_name, username, password_hash, role, is_active FROM users WHERE username = ?"
-
-	// Eksekusi Query
 	var user models.User
 	err := r.db.QueryRowContext(ctx, query, username).Scan(
 		&user.ID,
@@ -175,18 +181,22 @@ func (r *userRepository) FindUserByUsername(ctx context.Context, username string
 		&user.IsActive,
 	)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, errors.New("RESOURCE_NOT_FOUND")
+		}
 		return nil, err
 	}
 	return &user, nil
 }
 
-// 5. UpdatedRowUser (Update Data Profil)
-func (r *userRepository) UpdatedRowUser(ctx context.Context, user *models.User) error {
+// UpdateUser updates an existing user record.
+func (r *userRepository) UpdateUser(ctx context.Context, user *models.User) error {
+	query := `
+		UPDATE users 
+		SET full_name=?, username=?, email=?, password_hash=?, role=?, phone_number=?, is_active=?, updated_at=? 
+		WHERE id=?
+	`
 
-	// A. Query Dasar
-	query := "UPDATE users SET full_name=?, username=?, email=?, password_hash=?, role=?, phone_number=?, is_active=?, updated_at=? WHERE id=?"
-
-	// Eksekusi Query
 	_, err := r.db.ExecContext(ctx, query,
 		user.FullName,
 		user.Username,
@@ -201,52 +211,34 @@ func (r *userRepository) UpdatedRowUser(ctx context.Context, user *models.User) 
 	return err
 }
 
-// 6. SetUserInactive (Soft Delete)
-func (r *userRepository) SetUserInactive(ctx context.Context, id int64) error {
-
-	// A. Query Dasar
+// DeleteUser performs a soft delete by setting is_active to false.
+func (r *userRepository) DeleteUser(ctx context.Context, id int64) error {
 	query := "UPDATE users SET is_active = 0 WHERE id = ?"
 
-	// Eksekusi Query
 	_, err := r.db.ExecContext(ctx, query, id)
 	return err
 }
 
-// --- HELPER VALIDATION ---
-
+// IsEmailExists checks if an email is already in use by another user.
 func (r *userRepository) IsEmailExists(ctx context.Context, email string, excludeID int64) (bool, error) {
-
 	var exists bool
-
-	// A. Query Dasar
-	// Cek email, TAPI abaikan user dengan ID = excludeID (dipakai saat update diri sendiri)
 	query := "SELECT EXISTS(SELECT 1 FROM users WHERE email = ? AND id != ?)"
-
-	// Eksekusi Query
 	err := r.db.QueryRowContext(ctx, query, email, excludeID).Scan(&exists)
 	return exists, err
 }
 
+// IsPhoneExists checks if a phone number is already in use by another user.
 func (r *userRepository) IsPhoneExists(ctx context.Context, phone string, excludeID int64) (bool, error) {
-
 	var exists bool
-
-	// A. Query Dasar
 	query := "SELECT EXISTS(SELECT 1 FROM users WHERE phone_number = ? AND id != ?)"
-
-	// Eksekusi Query
 	err := r.db.QueryRowContext(ctx, query, phone, excludeID).Scan(&exists)
 	return exists, err
 }
 
+// IsUsernameExists checks if a username is already in use by another user.
 func (r *userRepository) IsUsernameExists(ctx context.Context, username string, excludeID int64) (bool, error) {
-
 	var exists bool
-
-	// Query Dasar
 	query := "SELECT EXISTS(SELECT 1 FROM users WHERE username = ? AND id != ?)"
-
-	// Eksekusi Query
 	err := r.db.QueryRowContext(ctx, query, username, excludeID).Scan(&exists)
 	return exists, err
 }
