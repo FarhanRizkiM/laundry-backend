@@ -11,25 +11,32 @@ import (
 	"laundry-backend/pkg/utils"
 )
 
+// UserService defines the contract for business logic related to users.
 type UserService interface {
 	RegisterUser(ctx context.Context, req dto.CreateUserRequest) (*dto.UserDetailResponse, error)
 	RetrievedUserDirectory(ctx context.Context, page, perPage int, search, role string, status int) (*dto.UserListResponse, error)
 	GetUserProfile(ctx context.Context, id int64) (*dto.UserDetailResponse, error)
-	ModifyUserData(ctx context.Context, id int64, req dto.UpdateUserRequest) (*dto.UserDetailResponse, error)
-	DeactivateUserAccount(ctx context.Context, id int64) error
+
+	// ModifyUserData now requires requester info for authorization logic.
+	ModifyUserData(ctx context.Context, targetID int64, req dto.UpdateUserRequest, requesterID int64, requesterRole string) (*dto.UserDetailResponse, error)
+
+	// DeactivateUserAccount now requires requester info to prevent self-deletion.
+	DeactivateUserAccount(ctx context.Context, targetID int64, requesterID int64) error
 }
 
 type userService struct {
 	userRepo repositories.UserRepository
 }
 
+// NewUserService creates a new instance of UserService.
 func NewUserService(userRepo repositories.UserRepository) UserService {
 	return &userService{userRepo: userRepo}
 }
 
-// 1. CreateUser (Register Karyawan Baru)
+// RegisterUser handles the registration of a new employee.
 func (s *userService) RegisterUser(ctx context.Context, req dto.CreateUserRequest) (*dto.UserDetailResponse, error) {
-	// A. Cek Duplikasi Data (Username, Email, No HP)
+
+	// 1. Check for Duplicate Data
 	if exists, _ := s.userRepo.IsUsernameExists(ctx, req.Username, 0); exists {
 		return nil, errors.New("USERNAME_EXISTS")
 	}
@@ -40,13 +47,13 @@ func (s *userService) RegisterUser(ctx context.Context, req dto.CreateUserReques
 		return nil, errors.New("PHONE_EXISTS")
 	}
 
-	// B. Hash Password
+	// 2. Hash Password
 	hashedPassword, err := utils.HashPassword(req.Password)
 	if err != nil {
 		return nil, err
 	}
 
-	// C. Siapkan Model
+	// 3. Prepare Model
 	userModel := &models.User{
 		FullName:     req.FullName,
 		Username:     req.Username,
@@ -54,16 +61,16 @@ func (s *userService) RegisterUser(ctx context.Context, req dto.CreateUserReques
 		PasswordHash: hashedPassword,
 		Role:         req.Role,
 		PhoneNumber:  req.PhoneNumber,
-		IsActive:     true, // Default aktif saat dibuat
+		IsActive:     true, // Default active upon creation
 		CreatedAt:    time.Now(),
 	}
 
-	// D. Simpan ke DB
+	// 4. Insert into DB
 	if err := s.userRepo.InsertUser(ctx, userModel); err != nil {
 		return nil, err
 	}
 
-	// E. Kembalikan Response
+	// 5. Return Response
 	return &dto.UserDetailResponse{
 		ID:          userModel.ID,
 		FullName:    userModel.FullName,
@@ -76,9 +83,10 @@ func (s *userService) RegisterUser(ctx context.Context, req dto.CreateUserReques
 	}, nil
 }
 
-// 2. GetAllUsers (List dengan Pagination)
+// RetrievedUserDirectory fetches a list of users with pagination and filters.
 func (s *userService) RetrievedUserDirectory(ctx context.Context, page, perPage int, search, role string, status int) (*dto.UserListResponse, error) {
-	// Hitung Offset
+
+	// 1. Calculate Offset
 	if page < 1 {
 		page = 1
 	}
@@ -87,13 +95,13 @@ func (s *userService) RetrievedUserDirectory(ctx context.Context, page, perPage 
 	}
 	offset := (page - 1) * perPage
 
-	// Panggil Repository
-	users, totalItems, err := s.userRepo.FetchAllUsers(ctx, perPage, offset, search, role, status)
+	// 2. Call Repository
+	users, totalItems, err := s.userRepo.FetchUsers(ctx, perPage, offset, search, role, status)
 	if err != nil {
 		return nil, err
 	}
 
-	// Mapping ke DTO Summary
+	// 3. Map to DTO Summary
 	var userResponses []dto.UserSummaryResponse
 	for _, u := range users {
 		userResponses = append(userResponses, dto.UserSummaryResponse{
@@ -105,7 +113,7 @@ func (s *userService) RetrievedUserDirectory(ctx context.Context, page, perPage 
 		})
 	}
 
-	// Hitung Total Pages
+	// 4. Calculate Total Pages
 	totalPages := int((totalItems + int64(perPage) - 1) / int64(perPage))
 
 	return &dto.UserListResponse{
@@ -119,14 +127,15 @@ func (s *userService) RetrievedUserDirectory(ctx context.Context, page, perPage 
 	}, nil
 }
 
-// 3. GetUserByID (Detail Profile)
+// GetUserProfile retrieves detailed user information by ID.
 func (s *userService) GetUserProfile(ctx context.Context, id int64) (*dto.UserDetailResponse, error) {
-	user, err := s.userRepo.FindUserByID(ctx, id)
+
+	user, err := s.userRepo.FindByID(ctx, id)
 	if err != nil {
-		return nil, err // Error "user not found" akan diteruskan
+		return nil, err
 	}
 
-	// Format Tanggal
+	// Format Dates safely
 	createdAtStr := user.CreatedAt.Format("2006-01-02 15:04:05")
 	updatedAtStr := ""
 	if user.UpdatedAt != nil {
@@ -151,50 +160,60 @@ func (s *userService) GetUserProfile(ctx context.Context, id int64) (*dto.UserDe
 	}, nil
 }
 
-// 4. UpdateUser (Edit Profile)
-func (s *userService) ModifyUserData(ctx context.Context, id int64, req dto.UpdateUserRequest) (*dto.UserDetailResponse, error) {
-	// A. Cari User Lama dulu
-	existingUser, err := s.userRepo.FindUserByID(ctx, id)
+// ModifyUserData updates user profile with strict security checks.
+func (s *userService) ModifyUserData(ctx context.Context, targetID int64, req dto.UpdateUserRequest, requesterID int64, requesterRole string) (*dto.UserDetailResponse, error) {
+
+	// 1. Retrieve Existing User
+	existingUser, err := s.userRepo.FindByID(ctx, targetID)
 	if err != nil {
 		return nil, err
 	}
 
-	// B. Update field jika ada di request (Partial Update)
-	// Kita cek pointer atau string kosong.
+	// 2. SECURITY GUARD: Access Control
+	if requesterRole != "owner" {
+		// Rule A: Non-owners can only edit their own profile
+		if targetID != requesterID {
+			return nil, errors.New("FORBIDDEN_ACCESS")
+		}
+
+		// Rule B: Non-owners CANNOT change Role or Active Status (Silent Ignore)
+		// We simply reset these fields in the request so the logic below ignores them.
+		req.Role = ""
+		req.IsActive = nil
+	}
+
+	// 3. Update Fields (Partial Update Logic)
 
 	if req.FullName != "" {
 		existingUser.FullName = req.FullName
 	}
 
-	// Cek Username unik jika berubah
 	if req.Username != "" && req.Username != existingUser.Username {
-		if exists, _ := s.userRepo.IsUsernameExists(ctx, req.Username, id); exists {
+		if exists, _ := s.userRepo.IsUsernameExists(ctx, req.Username, targetID); exists {
 			return nil, errors.New("USERNAME_EXISTS")
 		}
 		existingUser.Username = req.Username
 	}
 
-	// Cek Email unik jika berubah
 	if req.Email != "" && req.Email != existingUser.Email {
-		if exists, _ := s.userRepo.IsEmailExists(ctx, req.Email, id); exists {
+		if exists, _ := s.userRepo.IsEmailExists(ctx, req.Email, targetID); exists {
 			return nil, errors.New("EMAIL_EXISTS")
 		}
 		existingUser.Email = req.Email
 	}
 
-	// Cek No HP unik jika berubah
 	if req.PhoneNumber != "" && req.PhoneNumber != existingUser.PhoneNumber {
-		if exists, _ := s.userRepo.IsPhoneExists(ctx, req.PhoneNumber, id); exists {
+		if exists, _ := s.userRepo.IsPhoneExists(ctx, req.PhoneNumber, targetID); exists {
 			return nil, errors.New("PHONE_EXISTS")
 		}
 		existingUser.PhoneNumber = req.PhoneNumber
 	}
 
+	// Role is only updated if it passed the Security Guard above
 	if req.Role != "" {
 		existingUser.Role = req.Role
 	}
 
-	// Cek jika password mau diubah
 	if req.Password != "" {
 		hashedPwd, err := utils.HashPassword(req.Password)
 		if err != nil {
@@ -203,31 +222,38 @@ func (s *userService) ModifyUserData(ctx context.Context, id int64, req dto.Upda
 		existingUser.PasswordHash = hashedPwd
 	}
 
-	// Cek IsActive (Pointer check karena boolean bisa false)
 	if req.IsActive != nil {
 		existingUser.IsActive = *req.IsActive
 	}
 
-	// C. Update Timestamp
+	// 4. Update Timestamp
 	now := time.Now()
 	existingUser.UpdatedAt = &now
 
-	// D. Simpan Perubahan
-	if err := s.userRepo.UpdatedRowUser(ctx, existingUser); err != nil {
+	// 5. Save Changes
+	if err := s.userRepo.UpdateUser(ctx, existingUser); err != nil {
 		return nil, err
 	}
 
-	// E. Kembalikan Data Terbaru (Rekursif panggil GetUserByID biar formatnya sama)
-	return s.GetUserProfile(ctx, id)
+	// 6. Return Updated Profile
+	return s.GetUserProfile(ctx, targetID)
 }
 
-// 5. DeleteUser (Soft Delete)
-func (s *userService) DeactivateUserAccount(ctx context.Context, id int64) error {
-	// Cek dulu user-nya ada gak
-	_, err := s.userRepo.FindUserByID(ctx, id)
+// DeactivateUserAccount handles soft deletion of a user.
+func (s *userService) DeactivateUserAccount(ctx context.Context, targetID int64, requesterID int64) error {
+
+	// 1. SECURITY GUARD: Anti Self-Deletion
+	// An owner cannot delete their own account to prevent system lockout.
+	if targetID == requesterID {
+		return errors.New("FORBIDDEN_ACCESS")
+	}
+
+	// 2. Check if user exists
+	_, err := s.userRepo.FindByID(ctx, targetID)
 	if err != nil {
 		return err
 	}
 
-	return s.userRepo.SetUserInactive(ctx, id)
+	// 3. Execute Soft Delete
+	return s.userRepo.DeleteUser(ctx, targetID)
 }
