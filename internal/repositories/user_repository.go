@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"laundry-backend/internal/models"
+	"time"
 )
 
 // UserRepository defines the contract for user-related database operations.
@@ -28,6 +29,9 @@ type UserRepository interface {
 	IsEmailExists(ctx context.Context, email string, excludeID int64) (bool, error)
 	IsPhoneExists(ctx context.Context, phone string, excludeID int64) (bool, error)
 	IsUsernameExists(ctx context.Context, username string, excludeID int64) (bool, error)
+
+	// Auth Helper
+	UpdateLastLogin(ctx context.Context, id int64) error
 }
 
 // userRepository is the concrete implementation of UserRepository using sql.DB.
@@ -241,4 +245,12 @@ func (r *userRepository) IsUsernameExists(ctx context.Context, username string, 
 	query := "SELECT EXISTS(SELECT 1 FROM users WHERE username = ? AND id != ?)"
 	err := r.db.QueryRowContext(ctx, query, username, excludeID).Scan(&exists)
 	return exists, err
+}
+
+// UpdateLastLogin updates the last_login_at timestamp to the current time.
+func (r *userRepository) UpdateLastLogin(ctx context.Context, id int64) error {
+	query := "UPDATE users SET last_login_at = ? WHERE id = ?"
+	// used time.Now() in here
+	_, err := r.db.ExecContext(ctx, query, time.Now(), id)
+	return err
 }
