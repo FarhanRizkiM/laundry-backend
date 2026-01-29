@@ -18,12 +18,12 @@ import (
 )
 
 func main() {
-	// 1. Memuat konfigurasi dari file .env
+	// 1. Load configuration from .env file
 	if err := godotenv.Load(); err != nil {
 		log.Println("Peringatan: File .env tidak ditemukan, menggunakan variable sistem.")
 	}
 
-	// 2. Inisialisasi Koneksi Database
+	// 2. Initialize Database Connection
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true",
 		os.Getenv("DB_USER"),
 		os.Getenv("DB_PASSWORD"),
@@ -38,7 +38,8 @@ func main() {
 	}
 	defer db.Close()
 
-	// Konfigurasi Database Pool (Standar VIP)
+	// Configure Database Connection Pool
+	// Optimization for high-traffic scenarios
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(25)
 	db.SetConnMaxLifetime(5 * time.Minute)
@@ -47,31 +48,32 @@ func main() {
 		log.Fatal("Database tidak merespon:", err)
 	}
 
-	// 3. Dependency Injection (Menyambungkan Kabel-Kabel)
+	// 3. Dependency Injection (Layer Wiring)
+	// We inject dependencies from the bottom up: DB -> Repo -> Service -> Handler
 
-	// A. Repositories (Layer Data)
+	// A. Repository Layer (Data Access)
 	userRepo := repositories.NewUserRepository(db)
 	authRepo := repositories.NewAuthRepository(db)
 
-	// B. Services (Layer Bisnis)
+	// B. Service Layer (Business Logic)
 	authService := services.NewAuthService(authRepo, userRepo)
-	userService := services.NewUserService(userRepo) // --- BARU: Service User
+	userService := services.NewUserService(userRepo)
 
-	// C. Handlers (Layer HTTP)
+	// C. Handler Layer (HTTP Transport)
 	authHandler := handlers.NewAuthHandler(authService)
-	userHandler := handlers.NewUserHandler(userService) // --- BARU: Handler User
+	userHandler := handlers.NewUserHandler(userService)
 
-	// 4. Inisialisasi Framework Gin
+	// 4. Initialize Gin Framework
 	r := gin.Default()
 
-	// Registrasi Rute
+	// Setup Routes
 	v1 := r.Group("/api/v1")
 
-	// Panggil setup route masing-masing modul
+	// Register Module Routes
 	routes.SetupAuthRoutes(v1, authHandler, authRepo)
-	routes.SetupUserRoutes(v1, userHandler, authRepo) // --- BARU: Route User didaftarkan
+	routes.SetupUserRoutes(v1, userHandler, authRepo)
 
-	// 5. Menjalankan Server
+	// 5. Start the Server
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
