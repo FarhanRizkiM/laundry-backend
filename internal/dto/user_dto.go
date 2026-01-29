@@ -1,7 +1,10 @@
 package dto
 
-// --- 1. REQUEST DTO (Input) ---
+// ==========================================
+// 1. REQUEST DTO (Input from Client)
+// ==========================================
 
+// CreateUserRequest defines the payload for registering a new employee.
 type CreateUserRequest struct {
 	FullName    string `json:"full_name" binding:"required,min=3,max=150"`
 	Username    string `json:"username" binding:"required,alphanum,min=3,max=100"`
@@ -11,6 +14,8 @@ type CreateUserRequest struct {
 	Role        string `json:"role" binding:"required,oneof=owner cashier staff courier"`
 }
 
+// UpdateUserRequest defines the payload for updating an existing employee profile.
+// Pointers/OmitEmpty are used to allow partial updates (PATCH-like behavior).
 type UpdateUserRequest struct {
 	FullName    string `json:"full_name" binding:"omitempty,min=3,max=150"`
 	Username    string `json:"username" binding:"omitempty,alphanum,min=3,max=100"`
@@ -21,10 +26,12 @@ type UpdateUserRequest struct {
 	IsActive    *bool  `json:"is_active" binding:"omitempty"`
 }
 
-// --- 2. RESPONSE DTO (Output) ---
+// ==========================================
+// 2. RESPONSE DTO (Output to Client)
+// ==========================================
 
-// UserSummaryResponse: KHUSUS untuk Endpoint GET /api/v1/users (List) atau ringkasan response.
-// Isinya ringkas, hanya info publik karyawan.
+// UserSummaryResponse defines the concise user data structure.
+// Typically used for list views where full details are not required.
 type UserSummaryResponse struct {
 	ID       int64  `json:"id"`
 	FullName string `json:"full_name"`
@@ -33,8 +40,8 @@ type UserSummaryResponse struct {
 	IsActive bool   `json:"is_active"`
 }
 
-// UserDetailResponse: KHUSUS untuk Endpoint GET /api/v1/users/{id} (Detail) atau detail response.
-// Isinya lengkap termasuk Email, No HP, dan Time Logs.
+// UserDetailResponse defines the complete user profile structure.
+// Used for detail views, including contact info and timestamps.
 type UserDetailResponse struct {
 	ID          int64  `json:"id"`
 	FullName    string `json:"full_name"`
@@ -48,6 +55,8 @@ type UserDetailResponse struct {
 	UpdatedAt   string `json:"updated_at,omitempty"`
 }
 
+// UserListResponse acts as a container for the Service layer to return data + pagination.
+// The Handler will unwrap this and put it into the standard BaseResponse.
 type UserListResponse struct {
 	Data []UserSummaryResponse `json:"data"`
 	Meta MetaData              `json:"meta"`
