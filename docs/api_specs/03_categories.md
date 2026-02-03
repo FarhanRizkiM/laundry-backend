@@ -4,7 +4,7 @@
 
 ---
 
-## Endpoint : `POST /categories`
+## Endpoint : `POST /api/v1/categories`
 
 ### Description :
 
@@ -164,7 +164,7 @@ Kegagalan teknis pada server atau koneksi database saat memproses data.
 
 ---
 
-## Endpoint : `GET /categories`
+## Endpoint : `GET /api/v1/categories`
 
 ### Description :
 
@@ -313,7 +313,7 @@ Kegagalan teknis pada server atau database saat pengambilan data.
 
 ---
 
-## Endpoint : `GET /categories/{id}`
+## Endpoint : `GET /api/v1/categories/{id}`
 
 #### Description :
 
@@ -461,7 +461,7 @@ Kegagalan teknis pada server atau database saat melakukan pencarian data.
 
 ---
 
-## Endpoint : `PUT /categories/{id}`
+## Endpoint : `PUT /api/v1/categories/{id}`
 
 ### Description :
 
@@ -633,7 +633,7 @@ Kegagalan teknis pada server atau database saat memproses pembaruan data.
 
 ---
 
-## Endpoint : `DELETE /categories/{id}`
+## Endpoint : `DELETE /api/v1/categories/{id}`
 
 ### Description :
 
