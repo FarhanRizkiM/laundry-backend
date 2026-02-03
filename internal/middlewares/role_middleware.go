@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"laundry-backend/internal/dto"
+	"laundry-backend/pkg/response"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -12,18 +12,12 @@ import (
 func RoleMiddleware(allowedRoles ...string) gin.HandlerFunc {
 
 	return func(c *gin.Context) {
+
 		// 1. Ambil role user dari Context (yang sudah dipasang oleh AuthMiddleware)
 		userRole, exists := c.Get("role")
 		if !exists {
-			c.JSON(http.StatusUnauthorized, dto.BaseResponse{
-				Success: false,
-				Message: "Unauthorized",
-				Data: dto.ErrorResponseData{
-					ErrorCode: "MISSING_ROLE",
-					Errors:    "User role not found in context",
-				},
-			})
-			c.Abort()
+			// REFACTOR: Jika role tidak ketemu di context, berarti Auth bermasalah (Unauthorized)
+			response.ErrorResponse(c, http.StatusUnauthorized, response.ErrUnauthorized, "Unauthorized", "User role not found in context")
 			return
 		}
 
@@ -40,15 +34,9 @@ func RoleMiddleware(allowedRoles ...string) gin.HandlerFunc {
 
 		// 3. Jika tidak cocok, tolak akses (403 Forbidden)
 		if !roleAllowed {
-			c.JSON(http.StatusForbidden, dto.BaseResponse{
-				Success: false,
-				Message: "Forbidden Access",
-				Data: dto.ErrorResponseData{
-					ErrorCode: "FORBIDDEN_ACCESS",
-					Errors:    "You do not have permission to access this resource",
-				},
-			})
-			c.Abort()
+			// REFACTOR: Pakai Helper response.ErrorResponse
+			// Code: 403, ErrorCode: FORBIDDEN_ACCESS
+			response.ErrorResponse(c, http.StatusForbidden, response.ErrForbidden, "Forbidden Access", "You do not have permission to access this resource")
 			return
 		}
 

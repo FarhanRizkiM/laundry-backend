@@ -1,8 +1,8 @@
 package middleware
 
 import (
-	"laundry-backend/internal/dto"
 	"laundry-backend/internal/repositories"
+	"laundry-backend/pkg/response"
 	"laundry-backend/pkg/utils"
 	"net/http"
 	"strings"
@@ -13,20 +13,14 @@ import (
 // AuthMiddleware adalah penjaga gerbang untuk memvalidasi Access Token (JWT).
 func AuthMiddleware(authRepo repositories.AuthRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
+
 		// 1. Ambil header Authorization
 		authHeader := c.GetHeader("Authorization")
 
-		// 2. Cek apakah header kosong atau tidak diawali dengan "Bearer "
+		// 2. Cek apakah header kosong atau format salah
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-			c.JSON(http.StatusUnauthorized, dto.BaseResponse{
-				Success: false,
-				Message: "Unauthorized: Missing or invalid token format",
-				Data: dto.ErrorResponseData{
-					ErrorCode: "UNAUTHORIZED",
-					Errors:    "Authorization header is required",
-				},
-			})
-			c.Abort() // Stop request di sini
+			// REFACTOR: Pakai Helper
+			response.ErrorResponse(c, http.StatusUnauthorized, response.ErrUnauthorized, "Unauthorized: Missing or invalid token format", "Authorization header is required")
 			return
 		}
 
@@ -36,40 +30,23 @@ func AuthMiddleware(authRepo repositories.AuthRepository) gin.HandlerFunc {
 		// 4. Validasi token menggunakan jwt_utils yang sudah kita buat
 		claims, err := utils.ValidateAccessToken(tokenString)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, dto.BaseResponse{
-				Success: false,
-				Message: "Unauthorized: Invalid or expired token",
-				Data: dto.ErrorResponseData{
-					ErrorCode: "INVALID_TOKEN",
-					Errors:    err.Error(),
-				},
-			})
-			c.Abort()
+			// REFACTOR: Pakai Helper (Gunakan ErrInvalidToken atau ErrUnauthorized)
+			response.ErrorResponse(c, http.StatusUnauthorized, response.ErrInvalidToken, "Unauthorized: Invalid or expired token", err.Error())
 			return
 		}
 
 		// 5. [BARU] Cek apakah JTI token ini ada di daftar Blacklist database
 		isBlacklisted, err := authRepo.IsBlacklisted(c.Request.Context(), claims.JTI)
 		if err != nil {
-			// Jika database error, kita assume aman atau tolak (fail-safe). Di sini kita tolak untuk keamanan.
-			c.JSON(http.StatusInternalServerError, dto.BaseResponse{
-				Success: false,
-				Message: "Internal server error during auth check",
-			})
-			c.Abort()
+			// REFACTOR: Pakai Helper
+			response.ErrorResponse(c, http.StatusInternalServerError, response.ErrInternalServer, "Internal server error during auth check", nil)
 			return
 		}
 
 		if isBlacklisted {
-			c.JSON(http.StatusUnauthorized, dto.BaseResponse{
-				Success: false,
-				Message: "Unauthorized: Token has been logged out",
-				Data: dto.ErrorResponseData{
-					ErrorCode: "TOKEN_BLACKLISTED",
-					Errors:    "Please login again",
-				},
-			})
-			c.Abort()
+			// REFACTOR: Pakai Helper (Bisa pakai ErrUnauthorized atau bikin ErrTokenBlacklisted di codes.go)
+			// Disini kita pakai ErrUnauthorized agar aman
+			response.ErrorResponse(c, http.StatusUnauthorized, response.ErrUnauthorized, "Unauthorized: Token has been logged out", "Please login again")
 			return
 		}
 

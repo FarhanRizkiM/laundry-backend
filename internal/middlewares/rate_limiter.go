@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"laundry-backend/internal/dto"
+	"laundry-backend/pkg/response"
 	"net/http"
 	"sync"
 
@@ -35,15 +35,9 @@ func RateLimiter() gin.HandlerFunc {
 
 		// Cek apakah user sudah melewati batas
 		if !limiter.Allow() {
-			c.JSON(http.StatusTooManyRequests, dto.BaseResponse{
-				Success: false,
-				Message: "Too many attempts. Please slow down.",
-				Data: dto.ErrorResponseData{
-					ErrorCode: "TOO_MANY_REQUESTS",
-					Errors:    "Rate limit exceeded",
-				},
-			})
-			c.Abort() // Menghentikan request agar tidak lanjut ke Handler
+			// REFACTOR: Pakai Helper response.ErrorResponse
+			// Code: 429, ErrorCode: RATE_LIMIT_EXCEEDED
+			response.ErrorResponse(c, http.StatusTooManyRequests, response.ErrRateLimit, "Too many attempts. Please slow down.", "Rate limit exceeded")
 			return
 		}
 
