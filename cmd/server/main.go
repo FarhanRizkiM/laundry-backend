@@ -18,6 +18,7 @@ import (
 )
 
 func main() {
+
 	// 1. Load configuration from .env file
 	if err := godotenv.Load(); err != nil {
 		log.Println("Peringatan: File .env tidak ditemukan, menggunakan variable sistem.")
@@ -48,20 +49,26 @@ func main() {
 		log.Fatal("Database tidak merespon:", err)
 	}
 
-	// 3. Dependency Injection (Layer Wiring)
+	// ==========================================
+	// 3. DEPENDENCY INJECTION (WIRING)
+	// ==========================================
+
 	// We inject dependencies from the bottom up: DB -> Repo -> Service -> Handler
 
 	// A. Repository Layer (Data Access)
 	userRepo := repositories.NewUserRepository(db)
 	authRepo := repositories.NewAuthRepository(db)
+	categoryRepo := repositories.NewCategoryRepository(db)
 
 	// B. Service Layer (Business Logic)
 	authService := services.NewAuthService(authRepo, userRepo)
 	userService := services.NewUserService(userRepo)
+	categoryService := services.NewCategoryService(categoryRepo)
 
 	// C. Handler Layer (HTTP Transport)
 	authHandler := handlers.NewAuthHandler(authService)
 	userHandler := handlers.NewUserHandler(userService)
+	categoryHandler := handlers.NewCategoryHandler(categoryService)
 
 	// 4. Initialize Gin Framework
 	r := gin.Default()
@@ -72,6 +79,7 @@ func main() {
 	// Register Module Routes
 	routes.SetupAuthRoutes(v1, authHandler, authRepo)
 	routes.SetupUserRoutes(v1, userHandler, authRepo)
+	routes.SetupCategoryRoutes(v1, categoryHandler, authRepo)
 
 	// 5. Start the Server
 	port := os.Getenv("PORT")
